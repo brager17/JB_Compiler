@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -37,25 +38,142 @@ namespace Parser
         }
 
         public static long a = 1;
-        public static long b = 1;
-        public static long c = 1;
+        public static long b = 2;
+        public static long c = 3;
 
-        [InlineData("x*c*y*z+a-b", new[] {"a", "b", "c"})]
-        [InlineData("x/y/z/a", new[] {"a"})]
-        [InlineData("x+y+z-a", new[] {"a"})]
-        [InlineData("x-y-z-a", new[] {"a"})]
-        [InlineData("(x/(y+z)+(x*y)-a*(a+b-2*c))", new[] {"a", "b", "c"})]
-        [InlineData("(x/(y+z)+(x*y)-a*(a+b*-c))", new[] {"a", "b", "c"})]
-        [InlineData("(x/-(a+b*c))", new[] {"a", "b", "c"})]
+        [InlineData("x*c*y*z+a-b")]
+        [InlineData("x/y/z/a")]
+        [InlineData("x+y+z-a")]
+        [InlineData("x-y-z-a")]
+        [InlineData("(x/(y+z)+(x*y)-a*(a+b-2*c))")]
+        [InlineData("(x/(y+z)+(x*y)-a*(a+b*-c))")]
+        [InlineData("(x/-(a+b*c))")]
         [Theory]
-        public void ExpressionWithClosedVariable(string expression, string[] closed)
+        public void ExpressionWithClosedVariable(string expression)
         {
-            var actual = GeneratedMySelf(expression, out var func, closed);
+            var actual = GeneratedMySelf(expression, out var func, new[] {"a", "b", "c"});
 
             var expected =
-                GeneratedRoslyn(expression, out var monoFunc, GetType().Name, GetType().Namespace, closed);
+                GeneratedRoslyn(expression, out var monoFunc, GetType().Name, GetType().Namespace,
+                    new[] {("a", a), ("b", b), ("c", c)});
 
             Assert.Equal(expected, actual);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static long MethodWithoutParameters() => 1;
+
+        public const string MethodWithoutParametersText = @"
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static long MethodWithoutParameters() => 1;";
+
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static long MethodWith1Parameter(long x) => x;
+
+        public const string MethodWith1ParameterText = @"
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static long MethodWith1Parameter(long x) => x;";
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static long MethodWith2Parameters(long x, long y) => (x + y);
+
+        public const string MethodWith2ParametersText = @"
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static long MethodWith2Parameters(long x, long y) => (x + y);";
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static long MethodWith3Parameters(long x, long y, long z) => (x + y + z);
+
+        public const string MethodWith3ParametersText = @"
+         [MethodImpl(MethodImplOptions.NoInlining)]
+        public static long MethodWith3Parameters(long x, long y, long z) => (x + y + z);";
+
+        [Theory]
+        [InlineData("1+MethodWithoutParameters()",
+            new[] {MethodWithoutParametersText},
+            new[] {nameof(MethodWithoutParameters)})]
+        [InlineData("1+MethodWith1Parameter(3)",
+            new[] {MethodWith1ParameterText},
+            new[] {nameof(MethodWith1Parameter)})]
+        [InlineData("1+MethodWith2Parameters(1,3)",
+            new[] {MethodWith2ParametersText},
+            new[] {nameof(MethodWith2Parameters)})]
+        public void ExpressionWithCallsStaticMethods(string expression, string[] methods, string[] methodNames)
+        {
+            var actual = GeneratedMySelf(expression, out var func, null, methodNames);
+
+            var expected =
+                GeneratedRoslyn(expression, out var monoFunc, GetType().Name, GetType().Namespace, null, methods);
+
+            Assert.Equal(func(1, 2, 3), monoFunc(1, 2, 3));
+            Assert.Equal(expected, actual);
+        }
+
+        [Theory]
+        [InlineData("1+MethodWith1Parameter(x)",
+            new[] {MethodWith1ParameterText},
+            new[] {nameof(MethodWith1Parameter)})]
+        [InlineData("1+MethodWith3Parameters(x,y,z)",
+            new[] {MethodWith3ParametersText},
+            new[] {nameof(MethodWith3Parameters)})]
+        [InlineData("1+MethodWith3Parameters(a,1324,c)",
+            new[] {MethodWith3ParametersText},
+            new[] {nameof(MethodWith3Parameters)})]
+        public void Parse__StaticMethodWithVariableParameters__Correct
+            (string expression, string[] methods, string[] methodNames)
+        {
+            var actual = GeneratedMySelf(expression, out var func, new[] {"a", "b", "c"}, methodNames);
+
+            var expected =
+                GeneratedRoslyn(expression, out var monoFunc, GetType().Name, GetType().Namespace,
+                    new[] {("a", a), ("b", b), ("c", c)}, methods);
+
+            Assert.Equal(func(1, 2, 3), monoFunc(1, 2, 3));
+            Assert.Equal(expected, actual);
+        }
+
+        [Theory]
+        [InlineData("1+MethodWith1Parameter(x+12+y)",
+            new[] {MethodWith1ParameterText},
+            new[] {nameof(MethodWith1Parameter)})]
+        [InlineData("1+MethodWith1Parameter(x+12+y)*MethodWith1Parameter(12*14)",
+            new[] {MethodWith1ParameterText},
+            new[] {nameof(MethodWith1Parameter)})]
+        [InlineData(
+            "1+MethodWith1Parameter(x+12+y)*MethodWith1Parameter(12*14+MethodWithoutParameters()*MethodWith3Parameters(x,y,z))",
+            new[] {MethodWith1ParameterText, MethodWithoutParametersText, MethodWith3ParametersText},
+            new[] {nameof(MethodWith1Parameter), nameof(MethodWithoutParameters), nameof(MethodWith3Parameters)})]
+        public void Parse__StaticMethodWithExpressionParameter(string expr, string[] methodAsText, string[] methodNames)
+        {
+            var actual = GeneratedMySelf(expr, out var func, new[] {"a", "b", "c"}, methodNames);
+
+            var expected =
+                GeneratedRoslyn(expr, out var monoFunc, GetType().Name, GetType().Namespace,
+                    new[] {("a", a), ("b", b), ("c", c)}, methodAsText);
+
+            Assert.Equal(func(1, 2, 3), monoFunc(1, 2, 3));
+            Assert.Equal(expected, actual);
+        }
+
+        public long CallMethodWithoutParameters()
+        {
+            return MethodWithoutParameters();
+        }
+
+        public long CallMethodWithParameter()
+        {
+            return MethodWith1Parameter(1);
+        }
+
+        public long CallMethodWithParameters()
+        {
+            return MethodWith2Parameters(1, 2);
+        }
+
+        public long SumCallMethodsWithParameters()
+        {
+            return MethodWithoutParameters() + MethodWith1Parameter(1) + MethodWith2Parameters(1, 2);
         }
 
         [Fact]
@@ -73,18 +191,9 @@ namespace Parser
             }
         }
 
-        // problems :Expression 3147*(7/y)/z/84-(13+x)-106984*y/183*x-y/x*(8*(5)+x*0*(3/((2/(8/x/9)*0*(2-(9-z/6/x+7/y))/2+x))*3+y-1))
-//        x = 1245627257,y = 2124552673,z = 601530941 
-        //      MyResult 2408827548221383992
-        //System.DivideByZeroException : Attempted to divide by zero.
-
-
-        //  at Parser.BumpTests.Run(Int64 x, Int64 y, Int64 z)
-        //at Parser.BumpTests.ExecutionIsIdentical() in C:\Users\evgeniy\RiderProjects\Parser\Parser\BumpTests.cs:line 125
-
         [Theory]
         [InlineData(1245627257, 2124552673, 601530941)]
-        public static long Fact(long x, long y, long z)
+        public static long Fact2(long x, long y, long z)
         {
             return 3147 * (7 / y) / z / 84 - (13 + x) - 106984 * y / 183 * x - y / x *
                 (8 * (5) + x * 0 *
@@ -94,9 +203,14 @@ namespace Parser
         [Fact]
         public void ExecutionIsIdentical()
         {
-            string expression = null;
+            string expression =
+                "x+684451365090141806*x/y+3/y*z+z/6/(6)/4+x*6-((6/(6*(x+9/z)+y-3-z/5-z/7/x*5)-7)+0*(7/y-4/(0+(4/(3/x)))))";
+            long x = default;
+            long y = default;
+            long z = default;
+            using StreamWriter sw = new StreamWriter("out.txt");
+            var testCasesGenerator = new TestCasesGenerator();
 
-            expression = testCasesGenerator.GenerateRandomExpression(1).Single();
             var rnd = new Random();
 
             (long x, long y, long z) Generate() => (rnd.Next(1, int.MaxValue), rnd.Next(1, int.MaxValue),
@@ -122,8 +236,7 @@ namespace Parser
 
             string[] roslyn = GeneratedRoslyn(expression, out rosynFunc, GetType().Name, GetType().Namespace);
 
-            // var (x, y, z) = Generate();
-            var (x, y, z) = (1245627257, 2124552673, 601530941);
+            (x, y, z) = Generate();
 
             // _testOutputHelper.WriteLine($"x = {x},y = {y},z = {z} ");
 
@@ -148,6 +261,7 @@ namespace Parser
             // _testOutputHelper.WriteLine("");
         }
 
+
         [Fact]
         public void Parse__SumTwoInts__Correct()
         {
@@ -158,7 +272,7 @@ namespace Parser
 
 
         private string[] GeneratedMySelf(string expression, out Func<long, long, long, long> func,
-            string[] closed = null)
+            string[] closed = null, string[] methodNames = null)
         {
             var lexer = new Lexer(expression);
 
@@ -176,7 +290,15 @@ namespace Parser
                     .GetFields().Where(x => closed.Contains(x.Name))
                     .ToDictionary(x => x.Name, x => x);
 
-            var visitor = new CompileExpressionVisitor(dynamicMethod, new[] {"x", "y", "z"}, staticFields, null);
+            var staticMethods = methodNames == null
+                ? null
+                : GetType()
+                    .GetMethods()
+                    .Where(x => methodNames.Contains(x.Name))
+                    .ToDictionary(x => x.Name, x => x);
+
+            var visitor =
+                new CompileExpressionVisitor(dynamicMethod, new[] {"x", "y", "z"}, staticFields, staticMethods);
             visitor.Start((BinaryExpression) r);
 
             func = (Func<long, long, long, long>) dynamicMethod.CreateDelegate(typeof(Func<long, long, long, long>));
@@ -185,9 +307,9 @@ namespace Parser
 
         private string[] GeneratedRoslyn(string expression, out Func<long, long, long, long> func,
             string @class = "Runner",
-            string @namespace = "RunnerNamespace", string[] fields = null)
+            string @namespace = "RunnerNamespace", (string, long)[] fields = null, string[] methods = null)
         {
-            var assembly = testCasesGenerator.GetAssemblyStream(expression, @class, @namespace, fields);
+            var assembly = testCasesGenerator.GetAssemblyStream(expression, @class, @namespace, fields, methods);
 
             var methodDefinition = AssemblyDefinition.ReadAssembly(assembly).MainModule
                 .GetTypes()

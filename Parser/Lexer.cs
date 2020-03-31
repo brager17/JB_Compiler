@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Parser
 {
@@ -93,15 +94,8 @@ namespace Parser
                     i--;
                     tokens.Add(new Token(sb.ToString()));
                 }
-                else if (IsMethodName(i))
+                else if (IsMethodName(ref i, out string methodName))
                 {
-                    var sb = new StringBuilder();
-                    for (; _program[i] != '('; i++)
-                    {
-                        sb.Append(_program[i]);
-                    }
-
-                    var methodName = sb.ToString();
                     tokens.Add(new Token(methodName, TokenType.Word));
                     tokens.Add(Token.OpeningBracket);
                 }
@@ -152,6 +146,55 @@ namespace Parser
             }
 
             return true;
+        }
+
+        private bool IsMethodName(ref int i, out string methodName)
+        {
+            methodName = default;
+            var j = i;
+            if (!IsChar(_program[j]))
+            {
+                return false;
+            }
+
+            var methodNameSb = new StringBuilder(10);
+            for (; j < _program.Length && _program[j] != '('; j++)
+            {
+                if (!(IsChar(_program[j]) || IsDigit(_program[j])))
+                    return false;
+                methodNameSb.Append(_program[j]);
+            }
+
+            if (j == _program.Length)
+                return false;
+            
+            int k = j;
+            k++;
+            var differenceOpeningClosing = 1;
+            var parametersStringBuilder = new StringBuilder(10);
+            while (differenceOpeningClosing != 0)
+            {
+                if (_program[k] == '(')
+                    differenceOpeningClosing++;
+                else if (_program[k] == ')')
+                    differenceOpeningClosing--;
+                parametersStringBuilder.Append(_program[k]);
+                k++;
+            }
+
+            var methodNameToString = methodNameSb.ToString();
+            var parametersToString = parametersStringBuilder.ToString();
+            // todo should improve regex
+            var regexMethod = new Regex(@"(?'methodName'[\S]+)\([\s*\S,]*\)");
+            var match = regexMethod.Match($"{methodNameToString}({parametersToString})");
+            if (match.Success)
+            {
+                methodName = methodNameToString;
+                i = j;
+                return true;
+            }
+
+            return false;
         }
 
         private bool TryGetConstant(ref int i, out string constant)

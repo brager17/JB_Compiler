@@ -44,8 +44,8 @@ namespace Parser
 
             JsonAssert(
                 new BinaryExpression(
-                    new PrimaryExpression(1),
-                    new BinaryExpression(new PrimaryExpression(1), new PrimaryExpression(13), TokenType.Slash),
+                    new PrimaryExpression("1"),
+                    new BinaryExpression(new PrimaryExpression("1"), new PrimaryExpression("13"), TokenType.Slash),
                     TokenType.Plus),
                 result
             );
@@ -60,7 +60,7 @@ namespace Parser
             var result = parser.Parse().Single();
 
             JsonAssert(
-                new BinaryExpression(new PrimaryExpression(1), new PrimaryExpression(13), TokenType.Minus),
+                new BinaryExpression(new PrimaryExpression("1"), new PrimaryExpression("13"), TokenType.Minus),
                 result);
         }
 
@@ -74,8 +74,8 @@ namespace Parser
 
             JsonAssert(
                 new BinaryExpression(
-                    new BinaryExpression(new PrimaryExpression(2), new PrimaryExpression(2), TokenType.Plus),
-                    new PrimaryExpression(2), TokenType.Star)
+                    new BinaryExpression(new PrimaryExpression("2"), new PrimaryExpression("2"), TokenType.Plus),
+                    new PrimaryExpression("2"), TokenType.Star)
                 , result);
         }
 
@@ -119,7 +119,7 @@ namespace Parser
             JsonAssert(
                 new BinaryExpression(
                     new BinaryExpression(
-                        new BinaryExpression(new VariableExpression("x"), new PrimaryExpression(1), TokenType.Plus),
+                        new BinaryExpression(new VariableExpression("x"), new PrimaryExpression("1"), TokenType.Plus),
                         new VariableExpression("y"), TokenType.Star),
                     new VariableExpression("z"), TokenType.Plus)
                 , result);
@@ -137,14 +137,14 @@ namespace Parser
                 new BinaryExpression(
                     new BinaryExpression(
                         new BinaryExpression(
-                            new BinaryExpression(new VariableExpression("x"), new PrimaryExpression(1), TokenType.Plus),
+                            new BinaryExpression(new VariableExpression("x"), new PrimaryExpression("1"), TokenType.Plus),
                             new VariableExpression("y"), TokenType.Star),
                         new VariableExpression("z"), TokenType.Plus),
                     new MethodCallExpression("Method",
                         new List<IExpression>()
                         {
-                            new PrimaryExpression(1), new VariableExpression("x"), new PrimaryExpression(14),
-                            new UnaryExpression(new PrimaryExpression(1))
+                            new PrimaryExpression("1"), new VariableExpression("x"), new PrimaryExpression("14"),
+                            new UnaryExpression(new PrimaryExpression("1"))
                         }
                     ),
                     TokenType.Plus
@@ -162,7 +162,7 @@ namespace Parser
 
             JsonAssert(
                 new BinaryExpression(
-                    new MethodCallExpression("M", new[] {new PrimaryExpression(1),}),
+                    new MethodCallExpression("M", new[] {new PrimaryExpression("1"),}),
                     new MethodCallExpression("M1", new[] {new VariableExpression("x")}),
                     TokenType.Plus)
                 , result);
@@ -215,10 +215,10 @@ namespace Parser
                 Assert.Equal(x * y * z * x, method.Invoke(x, y, z));
         }
 
-        public long Test123()
+        [Fact]
+        public void Test123()
         {
-            // return 1 + (int.MaxValue - 1) - 1 + 123;
-            return 1;
+            var m = GetType().GetMethods().First();
         }
 
         [Fact]

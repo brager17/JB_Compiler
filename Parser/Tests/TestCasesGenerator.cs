@@ -59,17 +59,8 @@ namespace Parser
                         var lastSymbol = sb[^1];
                         if (digits.Contains(lastSymbol))
                         {
-                            var countDigitsBefore = 0;
-                            for (var i = 1; countDigitsBefore < 18 && sb.Length > i - 1; i++)
-                            {
-                                if (digits.Contains(sb[^i])) countDigitsBefore++;
-                            }
-
                             seq = operators;
-                            if (countDigitsBefore < 18)
-                            {
-                                seq = seq.Concat(digits);
-                            }
+                            seq = seq.Concat(digits);
 
                             if (DifferenceCountOpClBrackets(sb) > 0)
                                 seq = seq.Concat(new[] {brackets[1]});
@@ -167,7 +158,7 @@ namespace Parser
         {
             var lexer = new Lexer("22147482649 - 10000");
             var t = lexer.ReadAll();
-            var p = new Parser(t).Parse().Single();
+            var p = new Parser(t, false).Parse().Single();
             var f = new ILCompiler().Compile(p);
             f(1, 1, 1);
         }
@@ -178,10 +169,9 @@ namespace Parser
         }
 
         public MemoryStream GetAssemblyStream(string expr, string @class = "Runner",
-            string @namespace = "RunnerNamespace", string[] fields = null)
+            string @namespace = "RunnerNamespace", (string, long)[] fields = null, string[] fullMethodsAsText = null)
         {
-            var str = Wrap(expr, @class, @namespace);
-            var syntaxTree = CSharpSyntaxTree.ParseText(Wrap(expr, @class, @namespace, fields));
+            var syntaxTree = CSharpSyntaxTree.ParseText(Wrap(expr, @class, @namespace, fields, fullMethodsAsText));
             var compilation = CSharpCompilation.Create(
                 "assemblyName",
                 new[] {syntaxTree},
@@ -192,20 +182,26 @@ namespace Parser
             using var pdbStream = new MemoryStream();
             var result = compilation.Emit(dllStream);
             if (!result.Success)
-                throw new Exception();
+            {
+                throw new Exception("Roslyn compile exception\n" + string.Join("\n", result.Diagnostics));
+            }
+
             dllStream.Position = 0;
             return dllStream;
         }
 
         private string Wrap(string expr, string @class = "Runner",
-            string @namespace = "RunnerNamespace", string[] staticFields = null)
+            string @namespace = "RunnerNamespace", (string, long)[] staticFields = null,
+            string[] fullMethodsAsText = null)
         {
             var sample = @"
+using System.Runtime.CompilerServices;
 namespace {namespace}
 {
      public class {class}
     {
         {fields}
+        {methods}
         public static long Run(long x, long y, long z)
         {
             return {expr};
@@ -217,11 +213,21 @@ namespace {namespace}
             {
                 sample = sample.Replace(
                     "{fields}",
-                    string.Join(Environment.NewLine, staticFields.Select(x => $"public static long {x};")));
+                    string.Join(Environment.NewLine,
+                        staticFields.Select(x => $"public static long {x.Item1}={x.Item2};")));
             }
             else
             {
                 sample = sample.Replace("{fields}", "");
+            }
+
+            if (fullMethodsAsText != null)
+            {
+                sample = sample.Replace("{methods}", string.Join(Environment.NewLine, fullMethodsAsText));
+            }
+            else
+            {
+                sample = sample.Replace("{methods}", "");
             }
 
             return sample

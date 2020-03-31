@@ -42,16 +42,43 @@ namespace Parser
         public ExpressionType ExpressionType { get; } = ExpressionType.Variable;
     }
 
+    public enum PrimaryType
+    {
+        Long = 1,
+        Int
+    }
+
     public class PrimaryExpression : IExpression
     {
-        public static PrimaryExpression FoldedAfterMul0 = new PrimaryExpression(0) {IsFoldedAfterMul0 = true};
+        public static PrimaryExpression FoldedAfterMul0 = new PrimaryExpression("0") {IsFoldedAfterMul0 = true};
 
-        public PrimaryExpression(long value)
+        public static PrimaryType GetPrimaryType(string number)
         {
-            Value = value;
+            var l = long.Parse(number);
+            return GetPrimaryType(l);
         }
 
-        public readonly long Value;
+        public static PrimaryType GetPrimaryType(long number)
+        {
+            return number >= int.MinValue && number <= int.MaxValue ? PrimaryType.Int : PrimaryType.Long;
+        }
+
+        public PrimaryExpression(string value, PrimaryType primaryType)
+        {
+            Value = value;
+            PrimaryType = primaryType;
+        }
+
+        public PrimaryExpression(string value)
+        {
+            Value = value;
+            PrimaryType = GetPrimaryType(value);
+        }
+
+        public long LongValue => long.Parse(Value);
+
+        public readonly string Value;
+        public readonly PrimaryType PrimaryType;
         public ExpressionType ExpressionType { get; } = ExpressionType.Primary;
 
         // (x*12*14)*0 = 0; needs for example : (1/0*x) - no divide by null compile time exception, (1/0) - divide by null compile time exception
@@ -149,10 +176,10 @@ namespace Parser
                 {
                     Index++;
                     var right = Multiplicative();
-                    if (TryFold(result, out var leftValue) &&
-                        TryFold(right, out var rightValue))
+                    if (TryFold(result, out var leftValue, out var leftType) &&
+                        TryFold(right, out var rightValue, out var rightType))
                     {
-                        result = ConstantFold(leftValue, rightValue, TokenType.Plus);
+                        result = ConstantFold(leftValue, leftType, rightValue, rightType, TokenType.Plus);
                     }
                     else
                     {
@@ -166,10 +193,10 @@ namespace Parser
                 {
                     Index++;
                     var right = Multiplicative();
-                    if (TryFold(result, out var leftValue) &&
-                        TryFold(right, out var rightValue))
+                    if (TryFold(result, out var leftValue, out var leftType) &&
+                        TryFold(right, out var rightValue, out var rightType))
                     {
-                        result = ConstantFold(leftValue, rightValue, TokenType.Minus);
+                        result = ConstantFold(leftValue, leftType, rightValue, rightType, TokenType.Minus);
                     }
                     else
                     {
@@ -185,32 +212,113 @@ namespace Parser
             return result;
         }
 
-        private bool CheckOverflow(long left, long right, TokenType type)
+
+        private void CheckOverflow(long left, PrimaryType leftType, long right, PrimaryType rightType, TokenType type)
         {
-            if (type == TokenType.Plus)
+            // it is not best way
+            checked
             {
-                if ((left > int.MaxValue || right > int.MaxValue) && right + left < 0)
-                    throw new Exception("The operation overflows at compile time in checked mode");
+                if (leftType == PrimaryType.Int && rightType == PrimaryType.Int)
+                {
+                    var iLeft = (int) left;
+                    var iRight = (int) right;
+                    switch (type)
+                    {
+                        case TokenType.Plus:
+                            _ = iLeft + iRight;
+                            break;
+                        case TokenType.Minus:
+                            _ = iLeft - iRight;
+                            break;
+                        case TokenType.Star:
+                            _ = iLeft * iRight;
+                            break;
+                    }
+                }
 
-                if ((left < int.MinValue || right < int.MinValue) && right + left > 0)
-                    throw new Exception("The operation overflows at compile time in checked mode");
+                switch (type)
+                {
+                    case TokenType.Plus:
+                        _ = left + right;
+                        break;
+                    case TokenType.Minus:
+                        _ = left - right;
+                        break;
+                    case TokenType.Star:
+                        _ = left * right;
+                        break;
+                }
+            }
 
-                if (left <= int.MaxValue && right <= int.MaxValue && left + right > int.MaxValue)
-                    throw new Exception("The operation overflows at compile time in checked mode");
-            }
-            else if (type == TokenType.Minus)
-            {
-            }
-            else if (type == TokenType.Star)
-            {
-            }
 
-            return true;
+            //
+            // if (type == TokenType.Plus)
+            // {
+            //     if (IsInt(left) && IsInt(right))
+            //     {
+            //         int iLeft = (int) left;
+            //         int iRight = (int) right;
+            //
+            //         if (iLeft > 0 && iRight > 0 && iLeft + iRight < 0)
+            //             return true;
+            //         if (iLeft < 0 && iRight < 0 && iLeft + iRight > 0)
+            //             return true;
+            //     }
+            //     else
+            //     {
+            //         if (left > 0 && right > 0 && left + right < 0)
+            //             return true;
+            //         if (left < 0 && right < 0 && left + right > 0)
+            //             return true;
+            //     }
+            // }
+            // else if (type == TokenType.Minus)
+            // {
+            //     if (IsInt(left) && IsInt(right))
+            //     {
+            //         int iLeft = (int) left;
+            //         int iRight = (int) right;
+            //
+            //         if (iLeft < 0 && iRight > 0 && iLeft - iRight > 0)
+            //             return true;
+            //         if (iLeft > 0 && iRight < 0 && iLeft - iRight < 0)
+            //             return true;
+            //     }
+            //
+            //     else if (left < 0 && right > 0 && left - right > 0)
+            //         return true;
+            //     else if (left > 0 && left < 0 && left - left < 0)
+            //         return true;
+            // }
+            // else if (type == TokenType.Star)
+            // {
+            //     if (IsInt(left) && IsInt(right))
+            //     {
+            //         int iLeft = (int) left;
+            //         int iRight = (int) right;
+            //
+            //         if (iLeft < 0 && iRight < 0 && iLeft * iRight < 0) return true;
+            //         if (iLeft > 0 && iRight < 0 && iLeft * iRight > 0) return true;
+            //         if (iLeft < 0 && iRight > 0 && iLeft * iRight > 0) return true;
+            //         if (iLeft > 0 && iRight > 0 && iLeft * iRight < 0) return true;
+            //     }
+            //
+            //     else
+            //     {
+            //         if (left < 0 && right < 0 && left * right < 0) return true;
+            //         if (left > 0 && right < 0 && left * right > 0) return true;
+            //         if (left < 0 && right > 0 && left * right > 0) return true;
+            //         if (left > 0 && right > 0 && left * right < 0) return true;
+            //     }
+            // }
+            //
+            // return false;
         }
 
-        private IExpression ConstantFold(long left, long right, TokenType type)
+        private IExpression ConstantFold(long left, PrimaryType leftType, long right, PrimaryType rightType,
+            TokenType type)
         {
-            // todo check overflow
+            CheckOverflow(left, leftType, right, rightType, type);
             long result;
             switch (type)
             {
@@ -229,28 +337,35 @@ namespace Parser
                 default: throw new Exception();
             }
 
+            var primaryType = leftType == PrimaryType.Int && rightType == PrimaryType.Int
+                ? PrimaryType.Int
+                : PrimaryType.Long;
+
             return result >= 0
-                ? (IExpression) new PrimaryExpression(result)
-                : new UnaryExpression(new PrimaryExpression(-result));
+                ? (IExpression) new PrimaryExpression(result.ToString(), primaryType)
+                : new UnaryExpression(new PrimaryExpression((-result).ToString(), primaryType));
         }
 
-        private bool TryFold(IExpression expression, out long value)
+        private bool TryFold(IExpression expression, out long value, out PrimaryType primaryType)
         {
             value = default;
+            primaryType = default;
             if (!_constantFolding) return false;
             if (expression.TryCast<PrimaryExpression>(out var primaryExpression))
             {
                 if (primaryExpression.IsFoldedAfterMul0)
                     return false;
 
-                value = primaryExpression.Value;
+                value = primaryExpression.LongValue;
+                primaryType = primaryExpression.PrimaryType;
                 return true;
             }
 
             if (expression.TryCast<UnaryExpression>(out var unary) &&
                 unary.Expression.TryCast(out primaryExpression))
             {
-                value = -primaryExpression.Value;
+                value = -primaryExpression.LongValue;
+                primaryType = primaryExpression.PrimaryType;
                 return true;
             }
 
@@ -268,27 +383,29 @@ namespace Parser
                 {
                     Index++;
                     var right = Unary();
-                    if (TryFold(result, out var leftValue) && TryFold(right, out var rightValue))
+                    if (TryFold(result, out var leftValue, out var leftType) &&
+                        TryFold(right, out var rightValue, out var rightType))
                     {
                         // (3*4) = 12; 
-                        result = ConstantFold(leftValue, rightValue, TokenType.Star);
+                        result = ConstantFold(leftValue, leftType, rightValue, rightType, TokenType.Star);
                     }
-                    else if (TryFold(result, out leftValue) && leftValue == 1)
+                    else if (TryFold(result, out leftValue, out _) && leftValue == 1)
                     {
                         // 1*(x+y-12) = x+y-12; 
                         result = right;
                     }
-                    else if (TryFold(result, out leftValue) && leftValue == 0)
-                    {
-                        //0*(x+y-12) = 0
-                        result = PrimaryExpression.FoldedAfterMul0;
-                    }
-                    else if (TryFold(right, out rightValue) && rightValue == 0)
-                    {
-                        //(x+y-12)*0 = 0
-                        result = PrimaryExpression.FoldedAfterMul0;
-                    }
-                    else if (TryFold(right, out rightValue) && rightValue == 1)
+                    // see notes.txt, нужно сделать также как компилятор, будет возможно после реализации statements
+                    // else if (TryFold(result, out leftValue) && leftValue == 0)
+                    // {
+                    // 0*(x+y-12) = 0
+                    // result = PrimaryExpression.FoldedAfterMul0;
+                    // }
+                    // else if (TryFold(right, out rightValue) && rightValue == 0)
+                    // {
+                    // (x+y-12)*0 = 0
+                    // result = PrimaryExpression.FoldedAfterMul0;
+                    // }
+                    else if (TryFold(right, out rightValue, out _) && rightValue == 1)
                     {
                         // (x+y-12)*1 = x+y-12; 
                         result = result;
@@ -305,15 +422,16 @@ namespace Parser
                 {
                     Index++;
                     var right = Unary();
-                    if (TryFold(result, out var leftValue) && TryFold(right, out var rightValue))
+                    if (TryFold(result, out var leftValue, out var leftType) &&
+                        TryFold(right, out var rightValue, out var rightType))
                     {
                         //12/0 
                         if (rightValue == 0)
                             throw new DivideByZeroException();
 
-                        result = ConstantFold(leftValue, rightValue, TokenType.Slash);
+                        result = ConstantFold(leftValue, leftType, rightValue, rightType, TokenType.Slash);
                     }
-                    else if (TryFold(right, out rightValue) && rightValue == 1)
+                    else if (TryFold(right, out rightValue, out _) && rightValue == 1)
                     {
                         // (x+y-12)/1 = (x+y-12)
                         result = result;
@@ -358,8 +476,9 @@ namespace Parser
         {
             if (long.TryParse(Current.Value, out var value))
             {
+                var stringValue = Current.Value;
                 Index++;
-                return new PrimaryExpression(value);
+                return new PrimaryExpression(stringValue);
             }
 
             if (Current?.Type == TokenType.Variable)
@@ -396,22 +515,40 @@ namespace Parser
                     throw new Exception("Opening bracket must be after method name");
                 }
 
-
+                Index++;
                 var @params = new List<IExpression>();
                 while (Current?.Type != TokenType.ClosingBracket)
                 {
-                    Index++;
                     @params.Add(Expression());
 
                     if (Current.Type != TokenType.Comma && Current.Type != TokenType.ClosingBracket)
                     {
                         throw new Exception("Method parameters must be separated by comma");
                     }
+
+                    if (Current.Type == TokenType.Comma)
+                    {
+                        Index++;
+                    }
                 }
+
 
                 if (Current == null) throw new Exception("Method must end with the closing bracket");
                 Index++;
                 return new MethodCallExpression(methodName, @params);
+            }
+
+            if (Current?.Type == TokenType.Constant)
+            {
+                if (Constants.Dictionary.TryGetValue(Current.Value, out var constantValue))
+                {
+                    Index++;
+                    var primaryType = PrimaryExpression.GetPrimaryType(constantValue);
+                    if (constantValue >= 0) return new PrimaryExpression(constantValue.ToString(), primaryType);
+                    return new UnaryExpression(new PrimaryExpression((-constantValue).ToString(), primaryType));
+                }
+
+                throw new Exception("Unknown constant");
             }
 
             throw new ArgumentException();

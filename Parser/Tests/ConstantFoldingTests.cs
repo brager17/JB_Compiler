@@ -15,7 +15,7 @@ namespace Parser
             var parseResult = GetParseResult(expr);
 
             Assert.Equal(ExpressionType.Primary, parseResult.ExpressionType);
-            Assert.Equal(6, ((PrimaryExpression) parseResult).Value);
+            Assert.Equal(6, ((PrimaryExpression) parseResult).LongValue);
         }
 
         [Fact]
@@ -29,7 +29,7 @@ namespace Parser
             // var result = visitor.Visit(parseResult);
 
             Assert.Equal(ExpressionType.Primary, parseResult.ExpressionType);
-            Assert.Equal(2, ((PrimaryExpression) parseResult).Value);
+            Assert.Equal(2, ((PrimaryExpression) parseResult).LongValue);
         }
 
 
@@ -41,7 +41,7 @@ namespace Parser
             var parseResult = GetParseResult(expr);
 
             Assert.Equal(ExpressionType.Unary, parseResult.ExpressionType);
-            Assert.Equal(-3, -((PrimaryExpression) ((UnaryExpression) parseResult).Expression).Value);
+            Assert.Equal(-3, -((PrimaryExpression) ((UnaryExpression) parseResult).Expression).LongValue);
         }
 
 
@@ -53,7 +53,7 @@ namespace Parser
             var parseResult = GetParseResult(expr);
 
             Assert.Equal(ExpressionType.Primary, parseResult.ExpressionType);
-            Assert.Equal(0, ((PrimaryExpression) parseResult).Value);
+            Assert.Equal(0, ((PrimaryExpression) parseResult).LongValue);
         }
 
         [Fact]
@@ -64,7 +64,7 @@ namespace Parser
             var parseResult = GetParseResult(expr);
 
             Assert.Equal(ExpressionType.Primary, parseResult.ExpressionType);
-            Assert.Equal(1, ((PrimaryExpression) parseResult).Value);
+            Assert.Equal(1, ((PrimaryExpression) parseResult).LongValue);
         }
 
 
@@ -76,7 +76,7 @@ namespace Parser
             var parseResult = GetParseResult(expr);
 
             Assert.Equal(ExpressionType.Primary, parseResult.ExpressionType);
-            Assert.Equal(1, ((PrimaryExpression) parseResult).Value);
+            Assert.Equal(1, ((PrimaryExpression) parseResult).LongValue);
         }
 
 
@@ -132,7 +132,18 @@ namespace Parser
             GetParseResult(expr);
         }
 
-        
+        // [InlineData(
+            // "x+684451365090141806*x/y+3/y*z+z/6/(6)/4+x*6-((6/(6*(x+9/z)+y-3-z/5-z/7/x*5)-7)+0*(7/y-4/(0+(4/(3/x)))))")]
+        // [Theory]
+        [Fact]
+        public void Parse__Multi0__DoesntConstantFold()
+        {
+            var p = GetParseResult("0*(x-4)");
+
+            Assert.NotEqual(p.ExpressionType, ExpressionType.Primary);
+        }
+
+
         IExpression GetParseResult(string expression)
         {
             var lexer = new Lexer(expression);

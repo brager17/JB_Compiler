@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using Parser;
@@ -70,7 +71,7 @@ namespace Compiler
 
         private readonly string[] _parameters;
         private readonly Dictionary<string, FieldInfo> _closedFields;
-        private readonly string[] _closedMethods;
+        private readonly Dictionary<string, MethodInfo> _closedMethods;
         private readonly string[] _variables;
         private ILGenerator _ilGenerator;
 
@@ -81,7 +82,7 @@ namespace Compiler
             DynamicMethod dynamicMethod,
             string[] parameters,
             Dictionary<string, FieldInfo> closedFields,
-            string[] closedMethods)
+            Dictionary<string, MethodInfo> closedMethods)
         {
             _parameters = parameters;
             _closedFields = closedFields;
@@ -130,14 +131,14 @@ namespace Compiler
 
         public void Visit(PrimaryExpression primaryExpression)
         {
-            if (primaryExpression.Value > int.MaxValue)
+            if (primaryExpression.LongValue > int.MaxValue)
             {
                 logger.Log($"ldc.i8 {primaryExpression.Value}");
-                _ilGenerator.Emit(OpCodes.Ldc_I8, primaryExpression.Value);
+                _ilGenerator.Emit(OpCodes.Ldc_I8, primaryExpression.LongValue);
             }
             else
             {
-                switch (primaryExpression.Value)
+                switch (primaryExpression.LongValue)
                 {
                     case 0:
                         logger.Log("ldc.i4.0");
@@ -176,15 +177,15 @@ namespace Compiler
                         _ilGenerator.Emit(OpCodes.Ldc_I4_8);
                         break;
                     default:
-                        if (primaryExpression.Value < 128)
+                        if (primaryExpression.LongValue < 128)
                         {
                             logger.Log($"ldc.i4.s {primaryExpression.Value}");
-                            _ilGenerator.Emit(OpCodes.Ldc_I4_S, primaryExpression.Value);
+                            _ilGenerator.Emit(OpCodes.Ldc_I4_S, primaryExpression.LongValue);
                         }
                         else
                         {
                             logger.Log($"ldc.i4 {primaryExpression.Value}");
-                            _ilGenerator.Emit(OpCodes.Ldc_I4, primaryExpression.Value);
+                            _ilGenerator.Emit(OpCodes.Ldc_I4, primaryExpression.LongValue);
                         }
 
                         break;
@@ -197,6 +198,15 @@ namespace Compiler
 
         public void Visit(MethodCallExpression methodCallExpression)
         {
+            foreach (var parameter in methodCallExpression.Parameters)
+            {
+                Visit((dynamic) parameter);
+            }
+
+            var method = _closedMethods[methodCallExpression.Name];
+            var logParams = string.Join(",", method.GetParameters().Select(x => x.ParameterType.ToString()));
+            logger.Log($"call {method.ReturnType} {method.DeclaringType.FullName}::{method.Name}({logParams})");
+            _ilGenerator.Emit(OpCodes.Call, _closedMethods[methodCallExpression.Name]);
         }
 
         public void Visit(VariableExpression variable)
