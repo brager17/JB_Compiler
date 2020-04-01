@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Compiler;
 using Microsoft.CodeAnalysis;
@@ -156,10 +157,7 @@ namespace Parser
         [Fact]
         public void ldcSupport()
         {
-            var lexer = new Lexer("22147482649 - 10000");
-            var t = lexer.ReadAll();
-            var p = new Parser(t, false).Parse().Single();
-            var f = new ILCompiler().Compile(p);
+            TestHelper.GeneratedExpressionMySelf("22147482649 - 10000", out var f);
             f(1, 1, 1);
         }
 
@@ -169,9 +167,9 @@ namespace Parser
         }
 
         public MemoryStream GetAssemblyStream(string expr, string @class = "Runner",
-            string @namespace = "RunnerNamespace", (string, long)[] fields = null, string[] fullMethodsAsText = null)
+            string @namespace = "RunnerNamespace", (string, long)[] fields = null, string[] fullMethodsAsText = null,string[] statements=null)
         {
-            var syntaxTree = CSharpSyntaxTree.ParseText(Wrap(expr, @class, @namespace, fields, fullMethodsAsText));
+            var syntaxTree = CSharpSyntaxTree.ParseText(Wrap(expr, @class, @namespace, fields, fullMethodsAsText,statements));
             var compilation = CSharpCompilation.Create(
                 "assemblyName",
                 new[] {syntaxTree},
@@ -192,7 +190,7 @@ namespace Parser
 
         private string Wrap(string expr, string @class = "Runner",
             string @namespace = "RunnerNamespace", (string, long)[] staticFields = null,
-            string[] fullMethodsAsText = null)
+            string[] fullMethodsAsText = null, string[] statements = null)
         {
             var sample = @"
 using System.Runtime.CompilerServices;
@@ -202,8 +200,10 @@ namespace {namespace}
     {
         {fields}
         {methods}
+        [MethodImpl(MethodImplOptions.NoOptimization)]
         public static long Run(long x, long y, long z)
         {
+            {statements};
             return {expr};
         }
     }
@@ -228,6 +228,15 @@ namespace {namespace}
             else
             {
                 sample = sample.Replace("{methods}", "");
+            }
+
+            if (statements != null)
+            {
+                sample = sample.Replace("{statements}", string.Join(';', statements));
+            }
+            else
+            {
+                sample = sample.Replace("{statements}", "");
             }
 
             return sample

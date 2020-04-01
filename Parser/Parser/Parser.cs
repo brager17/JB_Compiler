@@ -1,28 +1,20 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 using Compiler;
 
 namespace Parser
 {
-    public static class Constants
-    {
-        public static Dictionary<string, long> Dictionary = new Dictionary<string, long>()
-        {
-            {"int.MaxValue", int.MaxValue},
-            {"int.MinValue", int.MinValue},
-            {"long.MaxValue", long.MaxValue},
-            {"long.MinValue", long.MinValue},
-        };
-    }
-
     public enum ExpressionType
     {
-        Variable,
+        Variable = 1,
         Primary,
         Binary,
         Unary,
-        MethodCall
+        MethodCall,
+        Assignment,
+        Return
     }
 
     public interface IExpression
@@ -30,110 +22,10 @@ namespace Parser
         public ExpressionType ExpressionType { get; }
     }
 
-    public class VariableExpression : IExpression
-    {
-        public string Name;
-
-        public VariableExpression(string name)
-        {
-            Name = name;
-        }
-
-        public ExpressionType ExpressionType { get; } = ExpressionType.Variable;
-    }
-
-    public enum PrimaryType
+    public enum CompilerType
     {
         Long = 1,
         Int
-    }
-
-    public class PrimaryExpression : IExpression
-    {
-        public static PrimaryExpression FoldedAfterMul0 = new PrimaryExpression("0") {IsFoldedAfterMul0 = true};
-
-        public static PrimaryType GetPrimaryType(string number)
-        {
-            var l = long.Parse(number);
-            return GetPrimaryType(l);
-        }
-
-        public static PrimaryType GetPrimaryType(long number)
-        {
-            return number >= int.MinValue && number <= int.MaxValue ? PrimaryType.Int : PrimaryType.Long;
-        }
-
-        public PrimaryExpression(string value, PrimaryType primaryType)
-        {
-            Value = value;
-            PrimaryType = primaryType;
-        }
-
-        public PrimaryExpression(string value)
-        {
-            Value = value;
-            PrimaryType = GetPrimaryType(value);
-        }
-
-        public long LongValue => long.Parse(Value);
-
-        public readonly string Value;
-        public readonly PrimaryType PrimaryType;
-        public ExpressionType ExpressionType { get; } = ExpressionType.Primary;
-
-        // (x*12*14)*0 = 0; needs for example : (1/0*x) - no divide by null compile time exception, (1/0) - divide by null compile time exception
-        public bool IsFoldedAfterMul0;
-    }
-
-    public class BinaryExpression : IExpression
-    {
-        public IExpression Left;
-        public IExpression Right;
-        public TokenType TokenType;
-
-        public BinaryExpression(IExpression left, IExpression right, TokenType tokenType)
-        {
-            Left = left;
-            Right = right;
-            TokenType = tokenType;
-        }
-
-        public ExpressionType ExpressionType { get; } = ExpressionType.Binary;
-    }
-
-    public class MethodCallExpression : IExpression
-    {
-        public string Name;
-
-        public IReadOnlyList<IExpression> Parameters;
-
-        public MethodCallExpression(string name, IReadOnlyList<IExpression> parameters)
-        {
-            Name = name;
-            Parameters = parameters;
-        }
-
-        public ExpressionType ExpressionType { get; } = ExpressionType.MethodCall;
-    }
-
-    public enum UnaryType
-    {
-        Positive,
-        Negative
-    }
-
-    public class UnaryExpression : IExpression
-    {
-        public readonly IExpression Expression;
-        public readonly UnaryType UnaryType;
-
-        public UnaryExpression(IExpression expression)
-        {
-            Expression = expression;
-            UnaryType = UnaryType.Negative;
-        }
-
-        public ExpressionType ExpressionType { get; } = ExpressionType.Unary;
     }
 
     public class Parser
@@ -141,22 +33,77 @@ namespace Parser
         private readonly IReadOnlyList<Token> _tokens;
         private readonly bool _constantFolding;
         private Expression _expression;
+        private Dictionary<string, CompilerType> _variables = new Dictionary<string, CompilerType>();
 
-        public Parser(IReadOnlyList<Token> tokens, bool constantFolding = true)
+        public Parser(
+            IReadOnlyList<Token> tokens,
+            Dictionary<string, CompilerType> variables = null,
+            bool constantFolding = true)
         {
             _tokens = tokens;
+            _variables = variables ?? new Dictionary<string, CompilerType>();
             _constantFolding = constantFolding;
         }
 
-        public IExpression[] Parse()
+        public IStatement[] Parse()
         {
-            List<IExpression> list = new List<IExpression>();
+            List<IStatement> list = new List<IStatement>();
             while (Index < _tokens.Count)
             {
-                list.Add(Expression());
+                list.Add(Statement());
             }
 
             return list.ToArray();
+        }
+
+        public IExpression ParseExpression()
+        {
+            return Expression();
+        }
+
+
+        public IStatement Statement()
+        {
+            if ((Current?.Type == TokenType.IntWord || Current?.Type == TokenType.LongWord) &&
+                _tokens[Index + 2].Type == TokenType.Assignment)
+            {
+                var keywordType = Current.Type;
+                Index++;
+
+                var type = keywordType switch
+                {
+                    TokenType.IntWord => CompilerType.Int,
+                    TokenType.LongWord => CompilerType.Long
+                };
+
+                var variable = new VariableExpression(Current.Value, type);
+                _variables.Add(variable.Name, variable.CompilerType);
+                Index += 2; // variable name + assignment sign
+                var expression = Expression();
+
+                if (Current?.Type != TokenType.Semicolon)
+                {
+                    throw new Exception("Statement must be ended by semicolon");
+                }
+
+                Index++;
+
+                return new AssignmentStatement(variable, expression);
+            }
+
+            if (Current?.Type == TokenType.Return)
+            {
+                Index++;
+                var expression = Expression();
+                if (Current?.Type != TokenType.Semicolon)
+                {
+                    throw new Exception("Return must be ended by semicolon");
+                }
+                Index++;
+                return new ReturnStatement(expression);
+            }
+
+            throw new Exception("дописать остальные виды statements");
         }
 
         public IExpression Expression()
@@ -213,12 +160,13 @@ namespace Parser
         }
 
 
-        private void CheckOverflow(long left, PrimaryType leftType, long right, PrimaryType rightType, TokenType type)
+        private void CheckOverflow(long left, CompilerType leftCompilerType, long right, CompilerType rightCompilerType,
+            TokenType type)
         {
             // it is not best way
             checked
             {
-                if (leftType == PrimaryType.Int && rightType == PrimaryType.Int)
+                if (leftCompilerType == CompilerType.Int && rightCompilerType == CompilerType.Int)
                 {
                     var iLeft = (int) left;
                     var iRight = (int) right;
@@ -315,10 +263,11 @@ namespace Parser
             // return false;
         }
 
-        private IExpression ConstantFold(long left, PrimaryType leftType, long right, PrimaryType rightType,
+        private IExpression ConstantFold(long left, CompilerType leftCompilerType, long right,
+            CompilerType rightCompilerType,
             TokenType type)
         {
-            CheckOverflow(left, leftType, right, rightType, type);
+            CheckOverflow(left, leftCompilerType, right, rightCompilerType, type);
             long result;
             switch (type)
             {
@@ -337,19 +286,19 @@ namespace Parser
                 default: throw new Exception();
             }
 
-            var primaryType = leftType == PrimaryType.Int && rightType == PrimaryType.Int
-                ? PrimaryType.Int
-                : PrimaryType.Long;
+            var primaryType = leftCompilerType == CompilerType.Int && rightCompilerType == CompilerType.Int
+                ? CompilerType.Int
+                : CompilerType.Long;
 
             return result >= 0
                 ? (IExpression) new PrimaryExpression(result.ToString(), primaryType)
                 : new UnaryExpression(new PrimaryExpression((-result).ToString(), primaryType));
         }
 
-        private bool TryFold(IExpression expression, out long value, out PrimaryType primaryType)
+        private bool TryFold(IExpression expression, out long value, out CompilerType compilerType)
         {
             value = default;
-            primaryType = default;
+            compilerType = default;
             if (!_constantFolding) return false;
             if (expression.TryCast<PrimaryExpression>(out var primaryExpression))
             {
@@ -357,7 +306,7 @@ namespace Parser
                     return false;
 
                 value = primaryExpression.LongValue;
-                primaryType = primaryExpression.PrimaryType;
+                compilerType = primaryExpression.CompilerType;
                 return true;
             }
 
@@ -365,7 +314,7 @@ namespace Parser
                 unary.Expression.TryCast(out primaryExpression))
             {
                 value = -primaryExpression.LongValue;
-                primaryType = primaryExpression.PrimaryType;
+                compilerType = primaryExpression.CompilerType;
                 return true;
             }
 
@@ -485,7 +434,9 @@ namespace Parser
             {
                 var varToken = Current;
                 Index++;
-                return new VariableExpression(varToken.Value);
+
+                if (_variables.TryGetValue(varToken.Value, out var variableType))
+                    return new VariableExpression(varToken.Value, variableType);
             }
 
             if (Current?.Type == TokenType.OpeningBracket)

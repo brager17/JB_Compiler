@@ -85,9 +85,7 @@ namespace Parser.Bumping
         {
             var lexer = new Lexer(expression);
 
-            var tokens = lexer.ReadAll();
-            var parser = new Parser(tokens);
-            var r = parser.Parse().Single();
+            var r = TestHelper.GetParseResultExpression(expression);
             var dynamicMethod = new DynamicMethod(
                 "method",
                 typeof(long),

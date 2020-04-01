@@ -17,7 +17,12 @@ namespace Parser
         Variable,
         Word,
         Comma,
-        Constant
+        Constant,
+        IntWord,
+        LongWord,
+        Semicolon,
+        Assignment,
+        Return
     }
 
 
@@ -30,6 +35,9 @@ namespace Parser
         public static Token ClosingBracket = new Token(TokenType.ClosingBracket);
         public static Token OpeningBracket = new Token(TokenType.OpeningBracket);
         public static Token Comma = new Token(TokenType.Comma);
+        public static Token Semicolon = new Token(TokenType.Semicolon);
+        public static Token Assignment = new Token(TokenType.Assignment);
+        public static Token Return = new Token(TokenType.Return);
 
         public Token(string value)
         {
@@ -55,13 +63,21 @@ namespace Parser
     public class Lexer
     {
         private readonly string _program;
-        private string SupportedChars = "+-*/(),";
+        private string SupportedChars = "+-*/(),;=";
+
+        private readonly Dictionary<string, TokenType> KeyWords = new Dictionary<string, TokenType>
+        {
+            {"int", TokenType.IntWord},
+            {"long", TokenType.LongWord},
+            {"return", TokenType.Return}
+        };
 
         public Lexer(string program)
         {
             _program = program;
         }
 
+//todo поддержать переменные состоящие из нескольких букв
         public IReadOnlyList<Token> ReadAll()
         {
             var tokens = new List<Token>();
@@ -78,7 +94,9 @@ namespace Parser
                         '/' => Token.Slash,
                         '(' => Token.OpeningBracket,
                         ')' => Token.ClosingBracket,
-                        ',' => Token.Comma
+                        ',' => Token.Comma,
+                        ';' => Token.Semicolon,
+                        '=' => Token.Assignment
                     });
                 }
 
@@ -104,6 +122,10 @@ namespace Parser
                     tokens.Add(new Token(constant, TokenType.Constant));
                     i--;
                 }
+                else if (TryGetKeyWord(ref i, out var nametype))
+                {
+                    tokens.Add(new Token(nametype.name, nametype.type));
+                }
                 else if (IsChar(_program[i]))
                 {
                     tokens.Add(new Token(_program[i].ToString(), TokenType.Variable));
@@ -116,6 +138,24 @@ namespace Parser
             return tokens;
         }
 
+        private bool TryGetKeyWord(ref int i, out (string name, TokenType type) nameType)
+        {
+            nameType = default;
+
+            var sb = new StringBuilder(4);
+            var j = i;
+            for (; j < _program.Length && _program[j] != ' '; j++)
+                sb.Append(_program[j]);
+
+            if (KeyWords.TryGetValue(sb.ToString(), out var tokenType))
+            {
+                nameType = (sb.ToString(), tokenType);
+                i = j;
+                return true;
+            }
+
+            return false;
+        }
 
         private bool IsDigit(char c) => c >= '0' && c <= '9';
         private bool IsChar(char c) => c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z';
@@ -167,7 +207,7 @@ namespace Parser
 
             if (j == _program.Length)
                 return false;
-            
+
             int k = j;
             k++;
             var differenceOpeningClosing = 1;

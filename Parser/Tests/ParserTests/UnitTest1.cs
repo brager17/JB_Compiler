@@ -18,7 +18,6 @@ using Xunit.Sdk;
 
 namespace Parser
 {
-   
     public class UnitTest1
     {
         private readonly ITestOutputHelper _testOutputHelper;
@@ -37,10 +36,7 @@ namespace Parser
         [Fact]
         public void Test1()
         {
-            var lexer = new Lexer("1+1/13");
-            var readOnlyList = lexer.ReadAll();
-            var parser = new Parser(readOnlyList, false);
-            var result = parser.Parse().Single();
+            var result = TestHelper.GetParseResultExpression("1+1/13",false);
 
             JsonAssert(
                 new BinaryExpression(
@@ -54,10 +50,7 @@ namespace Parser
         [Fact]
         public void Test2()
         {
-            var lexer = new Lexer("1-13");
-            var readOnlyList = lexer.ReadAll();
-            var parser = new Parser(readOnlyList, false);
-            var result = parser.Parse().Single();
+            var result = TestHelper.GetParseResultExpression("1-13",false);
 
             JsonAssert(
                 new BinaryExpression(new PrimaryExpression("1"), new PrimaryExpression("13"), TokenType.Minus),
@@ -67,10 +60,7 @@ namespace Parser
         [Fact]
         public void Test3()
         {
-            var lexer = new Lexer("(2+2)*2");
-            var readOnlyList = lexer.ReadAll();
-            var parser = new Parser(readOnlyList, false);
-            var result = parser.Parse().Single();
+            var result = TestHelper.GetParseResultExpression("(2+2)*2",false);
 
             JsonAssert(
                 new BinaryExpression(
@@ -83,10 +73,7 @@ namespace Parser
         // todo не разобран случай когда ((2+2)*2, тогда тоже нужно вернуть нормальную ошибку
         public void Test4()
         {
-            var lexer = new Lexer("(2+2))*2");
-            var readOnlyList = lexer.ReadAll();
-            var parser = new Parser(readOnlyList);
-            var @exception = Assert.Throws<Exception>(() => parser.Parse());
+            var @exception = Assert.Throws<Exception>(() => TestHelper.GetParseResultExpression("(2+2))*2",false));
             Assert.Equal(exception.Message, "Amount of opening brackets have to equals amount of closing brackets");
         }
 
@@ -111,39 +98,37 @@ namespace Parser
         [Fact]
         public void Test5()
         {
-            var lexer = new Lexer("(x+1)*y+z");
-            var readOnlyList = lexer.ReadAll();
-            var parser = new Parser(readOnlyList);
-            var result = parser.Parse().Single();
+            var result = TestHelper.GetParseResultExpression("(x+1)*y+z");
 
             JsonAssert(
                 new BinaryExpression(
                     new BinaryExpression(
-                        new BinaryExpression(new VariableExpression("x"), new PrimaryExpression("1"), TokenType.Plus),
-                        new VariableExpression("y"), TokenType.Star),
-                    new VariableExpression("z"), TokenType.Plus)
+                        new BinaryExpression(new VariableExpression("x", CompilerType.Long), new PrimaryExpression("1"),
+                            TokenType.Plus),
+                        new VariableExpression("y", CompilerType.Long), TokenType.Star),
+                    new VariableExpression("z", CompilerType.Long), TokenType.Plus)
                 , result);
         }
 
         [Fact]
         public void Test6()
         {
-            var lexer = new Lexer("(x+1)*y+z+Method(1,x,14,-1)"); // (x+1)*y+(z+Method());
-            var readOnlyList = lexer.ReadAll();
-            var parser = new Parser(readOnlyList);
-            var result = parser.Parse().Single();
+            var result = TestHelper.GetParseResultExpression("(x+1)*y+z+Method(1,x,14,-1)");
 
             JsonAssert(
                 new BinaryExpression(
                     new BinaryExpression(
                         new BinaryExpression(
-                            new BinaryExpression(new VariableExpression("x"), new PrimaryExpression("1"), TokenType.Plus),
-                            new VariableExpression("y"), TokenType.Star),
-                        new VariableExpression("z"), TokenType.Plus),
+                            new BinaryExpression(new VariableExpression("x", CompilerType.Long),
+                                new PrimaryExpression("1"),
+                                TokenType.Plus),
+                            new VariableExpression("y", CompilerType.Long), TokenType.Star),
+                        new VariableExpression("z", CompilerType.Long), TokenType.Plus),
                     new MethodCallExpression("Method",
                         new List<IExpression>()
                         {
-                            new PrimaryExpression("1"), new VariableExpression("x"), new PrimaryExpression("14"),
+                            new PrimaryExpression("1"), new VariableExpression("x", CompilerType.Long),
+                            new PrimaryExpression("14"),
                             new UnaryExpression(new PrimaryExpression("1"))
                         }
                     ),
@@ -155,15 +140,12 @@ namespace Parser
         [Fact]
         public void Test7()
         {
-            var lexer = new Lexer("M(1) + M1(x)"); // (x+1)*y+(z+Method());
-            var readOnlyList = lexer.ReadAll();
-            var parser = new Parser(readOnlyList);
-            var result = parser.Parse().Single();
+            var result = TestHelper.GetParseResultExpression("M(1) + M1(x)");
 
             JsonAssert(
                 new BinaryExpression(
                     new MethodCallExpression("M", new[] {new PrimaryExpression("1"),}),
-                    new MethodCallExpression("M1", new[] {new VariableExpression("x")}),
+                    new MethodCallExpression("M1", new[] {new VariableExpression("x", CompilerType.Long)}),
                     TokenType.Plus)
                 , result);
         }
@@ -178,21 +160,14 @@ namespace Parser
         // public void Test(long x, long y, long z)
         public void Test()
         {
-            Expression<Func<long, long, long, long>> expression = (x, y, z) => x + y + (x + y) * z;
-            var lexer = new Lexer("x + y + (x + y) * z");
-            var readOnlyList = lexer.ReadAll();
-            var parser = new Parser(readOnlyList);
-            var result = parser.Parse().Single();
+            TestHelper.GetParseResultExpression("x + y + (x + y) * z");
         }
 
         [Fact]
         // public void Test(long x, long y, long z)
         public void Test8()
         {
-            var lexer = new Lexer("x * y * z * x");
-            var readOnlyList = lexer.ReadAll();
-            var parser = new Parser(readOnlyList);
-            var result = parser.Parse().Single();
+            TestHelper.GetParseResultExpression("x * y * z * x");
         }
 
         public long Fact(long x, long y, long z)
@@ -203,12 +178,9 @@ namespace Parser
         [Fact]
         public void Test9()
         {
-            var lexer = new Lexer("x * y * z * x");
-            var readOnlyList = lexer.ReadAll();
-            var parser = new Parser(readOnlyList);
-            var result = parser.Parse().Single();
+            var result = TestHelper.GetParseResultExpression("x * y * z * x");
             var compiler = new ILCompiler();
-            var method = compiler.Compile(result);
+            var method = compiler.CompileExpression(result);
             for (var x = 0; x < 10; x++)
             for (var y = 0; y < 10; y++)
             for (var z = 0; z < 10; z++)

@@ -147,6 +147,37 @@ namespace Parser
             Assert.Equal(r[4].Value, "Method");
         }
 
+        [Fact]
+        public void Statements()
+        {
+            string expr = "long q = 12;long w = -14;return 1;";
+            var result = GetLexerResult(expr);
+
+            Assert.Equal(result[0].Type, TokenType.LongWord);
+            Assert.Equal(result[0].Value, "long");
+            Assert.Equal(result[1].Type, TokenType.Variable);
+            Assert.Equal(result[1].Value, "q");
+            Assert.Equal(result[2].Type, TokenType.Assignment);
+            Assert.Equal(result[3].Type, TokenType.Num);
+            Assert.Equal(result[3].Value, "12");
+            Assert.Equal(result[4].Type, TokenType.Semicolon);
+            
+            Assert.Equal(result[5].Type, TokenType.LongWord);
+            Assert.Equal(result[5].Value, "long");
+            Assert.Equal(result[6].Type, TokenType.Variable);
+            Assert.Equal(result[6].Value, "w");
+            Assert.Equal(result[7].Type, TokenType.Assignment);
+            Assert.Equal(result[8].Type, TokenType.Minus);
+            Assert.Equal(result[9].Type, TokenType.Num);
+            Assert.Equal(result[9].Value, "14");
+            Assert.Equal(result[10].Type, TokenType.Semicolon);
+
+            Assert.Equal(result[11].Type, TokenType.Return);
+            Assert.Equal(result[12].Type, TokenType.Num);
+            Assert.Equal(result[12].Value, "1");
+
+        }
+
         private IReadOnlyList<Token> GetLexerResult(string expr)
         {
             var lexer = new Lexer(expr);

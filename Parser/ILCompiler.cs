@@ -7,7 +7,7 @@ using Parser;
 
 namespace Compiler
 {
-    public static class IExpressionExtensions
+    public static class ExpressionExtensions
     {
         public static bool TryCast<T>(this IExpression expression, out T value) where T : IExpression
         {
@@ -42,21 +42,43 @@ namespace Compiler
         public delegate long CompileResult(long x, long y, long z);
 
 
-        public CompileResult Compile(IExpression expression)
+        public CompileResult Compile(IStatement[] statements)
         {
             var dynamicMethod = new DynamicMethod(
                 "method",
                 typeof(long),
                 new[] {typeof(long), typeof(long), typeof(long)});
 
-            var visitor = new CompileExpressionVisitor(dynamicMethod, new[] {"x", "y", "z"}, null, null);
-            visitor.Start((BinaryExpression) expression);
+            var visitor = new CompileExpressionVisitor(
+                dynamicMethod,
+                new[] {"x", "y", "z"},
+                null,
+                null);
+            visitor.Start(statements);
+            return (CompileResult) dynamicMethod.CreateDelegate(typeof(CompileResult), null);
+        }
+
+        public CompileResult CompileExpression(IExpression expression)
+        {
+            var dynamicMethod = new DynamicMethod(
+                "method",
+                typeof(long),
+                new[] {typeof(long), typeof(long), typeof(long)});
+
+            var visitor = new CompileExpressionVisitor(
+                dynamicMethod,
+                new[] {"x", "y", "z"},
+                null,
+                null);
+            visitor.Start(expression);
             return (CompileResult) dynamicMethod.CreateDelegate(typeof(CompileResult), null);
         }
     }
 
     public class CompileExpressionVisitor
     {
+        public Dictionary<string, CompilerType> Variables { get; }
+
         public class Logger
         {
             private List<string> _logger = new List<string>();
@@ -70,9 +92,9 @@ namespace Compiler
         }
 
         private readonly string[] _parameters;
-        private readonly Dictionary<string, FieldInfo> _closedFields;
+        private readonly Dictionary<string, FieldInfo> _closureFields;
         private readonly Dictionary<string, MethodInfo> _closedMethods;
-        private readonly string[] _variables;
+        private Dictionary<string, CompilerType> _localVariables;
         private ILGenerator _ilGenerator;
 
         public Logger logger = new Logger();
@@ -81,18 +103,46 @@ namespace Compiler
         public CompileExpressionVisitor(
             DynamicMethod dynamicMethod,
             string[] parameters,
-            Dictionary<string, FieldInfo> closedFields,
+            Dictionary<string, FieldInfo> closureFields,
             Dictionary<string, MethodInfo> closedMethods)
         {
             _parameters = parameters;
-            _closedFields = closedFields;
-            _closedMethods = closedMethods;
+            _localVariables = new Dictionary<string, CompilerType>();
+            _closureFields = closureFields ?? new Dictionary<string, FieldInfo>();
+            _closedMethods = closedMethods ?? new Dictionary<string, MethodInfo>();
             _ilGenerator = dynamicMethod.GetILGenerator();
         }
 
-        public void Start(BinaryExpression binaryExpression)
+        public void Start(IStatement[] statements)
         {
-            Visit(binaryExpression);
+            _localVariables = statements
+                .OfType<AssignmentStatement>()
+                // todo optimize:
+                .GroupBy(x => x.Left.Name)
+                .Select(x => x.First().Left)
+                .ToDictionary(x => x.Name, x => x.CompilerType);
+
+            foreach (var localVariable in _localVariables)
+            {
+                var type = localVariable.Value switch
+                {
+                    CompilerType.Long => typeof(long),
+                    CompilerType.Int => typeof(int),
+                    _ => throw new ArgumentOutOfRangeException()
+                };
+
+                _ilGenerator.DeclareLocal(type);
+            }
+
+            foreach (var statement in statements)
+            {
+                Visit((dynamic) statement);
+            }
+        }
+
+        public void Start(IExpression expression)
+        {
+            Visit((dynamic) expression);
             logger.Log("ret");
             _ilGenerator.Emit(OpCodes.Ret);
         }
@@ -122,6 +172,20 @@ namespace Compiler
             }
         }
 
+        public void Visit(ReturnStatement returnStatement)
+        {
+            Visit((dynamic) returnStatement.Returned);
+            logger.Log("ret");
+            _ilGenerator.Emit(OpCodes.Ret);
+        }
+
+        public void Visit(AssignmentStatement assignmentStatement)
+        {
+            Visit((dynamic) assignmentStatement.Right);
+            var count = Array.IndexOf(_localVariables.Select(x => x.Key).ToArray(), assignmentStatement.Left.Name);
+            _ilGenerator.Emit(OpCodes.Stloc, count);
+        }
+
         public void Visit(UnaryExpression unaryExpression)
         {
             Visit((dynamic) unaryExpression.Expression);
@@ -131,12 +195,12 @@ namespace Compiler
 
         public void Visit(PrimaryExpression primaryExpression)
         {
-            if (primaryExpression.LongValue > int.MaxValue)
+            if (primaryExpression.CompilerType == CompilerType.Long)
             {
                 logger.Log($"ldc.i8 {primaryExpression.Value}");
                 _ilGenerator.Emit(OpCodes.Ldc_I8, primaryExpression.LongValue);
             }
-            else
+            else if (primaryExpression.CompilerType == CompilerType.Int)
             {
                 switch (primaryExpression.LongValue)
                 {
@@ -233,15 +297,43 @@ namespace Compiler
                         _ilGenerator.Emit(OpCodes.Ldarg_3);
                         break;
                     default:
-                        logger.Log($"ldarg.5");
+                        logger.Log($"ldarg.s {variable.Name}");
                         _ilGenerator.Emit(OpCodes.Ldarg_S, variable.Name);
                         break;
                 }
             }
-            else if (_closedFields.TryGetValue(variable.Name, out var value))
+
+            else if (_localVariables.TryGetValue(variable.Name, out var value))
             {
-                logger.Log($"ldsfld {value.FieldType} {value.DeclaringType}::{value.Name}");
-                _ilGenerator.Emit(OpCodes.Ldsfld, value);
+                index = Array.IndexOf(_localVariables.Select(x => x.Key).ToArray(), variable.Name);
+                switch (index)
+                {
+                    case 0:
+                        logger.Log($"ldloc.0");
+                        _ilGenerator.Emit(OpCodes.Ldloc_0);
+                        break;
+                    case 1:
+                        logger.Log($"ldloc.1");
+                        _ilGenerator.Emit(OpCodes.Ldloc_1);
+                        break;
+                    case 2:
+                        logger.Log($"ldloc.2");
+                        _ilGenerator.Emit(OpCodes.Ldloc_2);
+                        break;
+                    case 3:
+                        logger.Log($"ldloc.3");
+                        _ilGenerator.Emit(OpCodes.Ldloc_3);
+                        break;
+                    default:
+                        logger.Log($"ldloc.s {index}");
+                        _ilGenerator.Emit(OpCodes.Ldloc_S, index);
+                        break;
+                }
+            }
+            else if (_closureFields.TryGetValue(variable.Name, out var field))
+            {
+                logger.Log($"ldsfld {field.FieldType} {field.DeclaringType}::{field.Name}");
+                _ilGenerator.Emit(OpCodes.Ldsfld, field);
             }
         }
     }
