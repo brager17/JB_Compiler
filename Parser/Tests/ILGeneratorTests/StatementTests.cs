@@ -95,12 +95,13 @@ namespace Parser.ILGeneratorTests
         }
 
         [Theory]
-        [InlineData("uint u = 1;uint q = int.MaxValue+u;return q;", "q")]
-        [InlineData("uint u = 1;uint q = int.MaxValue+u;int w = int.MaxValue-2;return q+w;", "q+w")]
-        [InlineData("uint u = 1;uint q = int.MaxValue+u;int w = int.MaxValue-2;return q*w;", "q*w")]
-        [InlineData("uint u = 1;uint q = int.MaxValue+u;int w = int.MaxValue-2;return q/w;", "q/w")]
-        [InlineData("uint u = 1;uint q = int.MaxValue+u;int w = int.MaxValue-2;return q-w;", "q-w")]
-        [InlineData("uint u = 1;uint q = int.MaxValue+u;long w = long.MaxValue;return q+w;", "q+w")]
+        [InlineData("int t=1;long q=2;long r = t + q;return r;","r")]
+        [InlineData("long u = 1;long q = int.MaxValue+u;return q;", "q")]
+        [InlineData("long u = 1;long q = int.MaxValue+u;int w = int.MaxValue-2;return q+w;", "q+w")]
+        [InlineData("long u = 1;long q = int.MaxValue+u;int w = int.MaxValue-2;return q*w;", "q*w")]
+        [InlineData("long u = 1;long q = int.MaxValue+u;int w = int.MaxValue-2;return q/w;", "q/w")]
+        [InlineData("long u = 1;long q = int.MaxValue+u;int w = int.MaxValue-2;return q-w;", "q-w")]
+        [InlineData("long u = 1;long q = int.MaxValue+u;long w = long.MaxValue;return q+w;", "q+w")]
         public void Test(string expr, string @return)
         {
             var t=TestHelper.GeneratedStatementsMySelf(expr, out var func);
@@ -111,15 +112,10 @@ namespace Parser.ILGeneratorTests
                     .SkipLast(2).ToArray());
 
             Assert.Equal(roslynFunc(1, 1, 1), func(1, 1, 1));
+            // Assert.Equal(t,tt);
         }
 
-        public long Method()
-        {
-            uint u = 1;
-            uint q = int.MaxValue + u;
-            int w = int.MaxValue - 2;
-            return q + w;
-        }
+       
 
         [Fact]
         public void BumpTest()

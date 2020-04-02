@@ -16,11 +16,11 @@ namespace Parser
                 return true;
             }
 
-            if (uint.TryParse(number, out _))
-            {
-                compilerType = CompilerType.UInt;
-                return true;
-            }
+            // if (uint.TryParse(number, out _))
+            // {
+                // compilerType = CompilerType.UInt;
+                // return true;
+            // }
 
             if (long.TryParse(number, out _))
             {

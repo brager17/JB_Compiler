@@ -16,15 +16,15 @@ namespace Parser
             Assert.Equal(tokens[0].Type, TokenType.Variable);
             Assert.Equal(tokens[0].Value, "x");
             Assert.Equal(tokens[1].Type, TokenType.Star);
-            Assert.Equal(tokens[2].Type, TokenType.OpeningBracket);
+            Assert.Equal(tokens[2].Type, TokenType.LeftParent);
             Assert.Equal(tokens[3].Type, TokenType.Num);
             Assert.Equal(tokens[3].Value, "8");
             Assert.Equal(tokens[4].Type, TokenType.Star);
-            Assert.Equal(tokens[5].Type, TokenType.OpeningBracket);
+            Assert.Equal(tokens[5].Type, TokenType.LeftParent);
             Assert.Equal(tokens[6].Type, TokenType.Num);
             Assert.Equal(tokens[6].Value, "5");
-            Assert.Equal(tokens[7].Type, TokenType.ClosingBracket);
-            Assert.Equal(tokens[8].Type, TokenType.ClosingBracket);
+            Assert.Equal(tokens[7].Type, TokenType.RightParent);
+            Assert.Equal(tokens[8].Type, TokenType.RightParent);
         }
 
         [Fact]
@@ -75,8 +75,8 @@ namespace Parser
 
             Assert.Equal(result[0].Type, TokenType.Word);
             Assert.Equal(result[0].Value, "Method");
-            Assert.Equal(result[1].Type, TokenType.OpeningBracket);
-            Assert.Equal(result[2].Type, TokenType.ClosingBracket);
+            Assert.Equal(result[1].Type, TokenType.LeftParent);
+            Assert.Equal(result[2].Type, TokenType.RightParent);
         }
 
         [Fact]
@@ -86,7 +86,7 @@ namespace Parser
 
             Assert.Equal(result[0].Type, TokenType.Word);
             Assert.Equal(result[0].Value, "Method");
-            Assert.Equal(result[1].Type, TokenType.OpeningBracket);
+            Assert.Equal(result[1].Type, TokenType.LeftParent);
             Assert.Equal(result[2].Type, TokenType.Num);
             Assert.Equal(result[2].Value, "1");
             Assert.Equal(result[3].Type, TokenType.Comma);
@@ -95,7 +95,7 @@ namespace Parser
             Assert.Equal(result[5].Type, TokenType.Comma);
             Assert.Equal(result[6].Type, TokenType.Num);
             Assert.Equal(result[6].Value, "3");
-            Assert.Equal(result[7].Type, TokenType.ClosingBracket);
+            Assert.Equal(result[7].Type, TokenType.RightParent);
         }
 
         [Fact]
@@ -105,13 +105,13 @@ namespace Parser
 
             Assert.Equal(TokenType.Word, result[0].Type);
             Assert.Equal("Method", result[0].Value);
-            Assert.Equal(TokenType.OpeningBracket, result[1].Type);
+            Assert.Equal(TokenType.LeftParent, result[1].Type);
             Assert.Equal(TokenType.Num, result[2].Type);
             Assert.Equal("1", result[2].Value);
             Assert.Equal(TokenType.Plus, result[3].Type);
             Assert.Equal(TokenType.Variable, result[4].Type);
             Assert.Equal("x", result[4].Value);
-            Assert.Equal(TokenType.ClosingBracket, result[5].Type);
+            Assert.Equal(TokenType.RightParent, result[5].Type);
         }
 
         [Fact]
@@ -139,7 +139,7 @@ namespace Parser
             var r = GetLexerResult(expr);
             Assert.Equal(r[0].Type, TokenType.Word);
             Assert.Equal(r[0].Value, "Method");
-            Assert.Equal(r[1].Type, TokenType.OpeningBracket);
+            Assert.Equal(r[1].Type, TokenType.LeftParent);
             Assert.Equal(r[2].Type, TokenType.Num);
             Assert.Equal(r[2].Value, "1");
             Assert.Equal(r[3].Type, TokenType.Plus);
@@ -161,7 +161,7 @@ namespace Parser
             Assert.Equal(result[3].Type, TokenType.Num);
             Assert.Equal(result[3].Value, "12");
             Assert.Equal(result[4].Type, TokenType.Semicolon);
-            
+
             Assert.Equal(result[5].Type, TokenType.LongWord);
             Assert.Equal(result[5].Value, "long");
             Assert.Equal(result[6].Type, TokenType.Variable);
@@ -172,10 +172,34 @@ namespace Parser
             Assert.Equal(result[9].Value, "14");
             Assert.Equal(result[10].Type, TokenType.Semicolon);
 
-            Assert.Equal(result[11].Type, TokenType.Return);
+            Assert.Equal(result[11].Type, TokenType.ReturnWord);
             Assert.Equal(result[12].Type, TokenType.Num);
             Assert.Equal(result[12].Value, "1");
+        }
 
+        [Fact]
+        public void If()
+        {
+            var expr = "if(1 == 1) {return 1} else {return 2}";
+
+            var lexer = new Lexer(expr);
+            var result = lexer.ReadAll();
+
+            Assert.Equal(TokenType.IfWord, result[0].Type);
+            Assert.Equal(TokenType.LeftParent, result[1].Type);
+            Assert.Equal(TokenType.Num, result[2].Type);
+            Assert.Equal(TokenType.EqualTo, result[3].Type);
+            Assert.Equal(TokenType.Num, result[4].Type);
+            Assert.Equal(TokenType.RightParent, result[5].Type);
+            Assert.Equal(TokenType.LeftBrace, result[6].Type);
+            Assert.Equal(TokenType.ReturnWord, result[7].Type);
+            Assert.Equal(TokenType.Num, result[8].Type);
+            Assert.Equal(TokenType.RightBrace, result[9].Type);
+            Assert.Equal(TokenType.ElseWord, result[10].Type);
+            Assert.Equal(TokenType.LeftBrace, result[11].Type);
+            Assert.Equal(TokenType.ReturnWord, result[12].Type);
+            Assert.Equal(TokenType.Num, result[13].Type);
+            Assert.Equal(TokenType.RightBrace, result[14].Type);
         }
 
         private IReadOnlyList<Token> GetLexerResult(string expr)

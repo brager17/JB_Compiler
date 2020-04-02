@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,22 +12,31 @@ namespace Parser
         Slash,
         Star,
         Num,
-        OpeningBracket,
-        ClosingBracket,
+        LeftParent,
+        RightParent,
+        LeftBrace,
+        RightBrace,
         Variable,
         Word,
         Comma,
         Constant,
 
         IntWord,
-        UIntWord,
         LongWord,
-        ULongWord,
 
 
         Semicolon,
         Assignment,
-        Return
+        ReturnWord,
+
+        IfWord,
+        ElseWord,
+        LessThan,
+        LessThanOrEquals,
+        GreaterThan,
+        GreaterThanOrEquals,
+        EqualTo,
+        NotEqualTo,
     }
 
 
@@ -38,12 +46,31 @@ namespace Parser
         public static Token Minus = new Token(TokenType.Minus);
         public static Token Slash = new Token(TokenType.Slash);
         public static Token Star = new Token(TokenType.Star);
-        public static Token ClosingBracket = new Token(TokenType.ClosingBracket);
-        public static Token OpeningBracket = new Token(TokenType.OpeningBracket);
+        public static Token LeftParent = new Token(TokenType.LeftParent);
+        public static Token RightParent = new Token(TokenType.RightParent);
+        public static Token LeftBrace = new Token(TokenType.LeftBrace);
+        public static Token RightBrace = new Token(TokenType.RightBrace);
         public static Token Comma = new Token(TokenType.Comma);
         public static Token Semicolon = new Token(TokenType.Semicolon);
         public static Token Assignment = new Token(TokenType.Assignment);
-        public static Token Return = new Token(TokenType.Return);
+        public static Token Return = new Token(TokenType.ReturnWord);
+        public static Token IfWord = new Token(TokenType.IfWord);
+        public static Token ElseWord = new Token(TokenType.ElseWord);
+        public static Token EqualTo = new Token(TokenType.EqualTo);
+        public static Token NotEqualTo = new Token(TokenType.NotEqualTo);
+        public static Token LessThan = new Token(TokenType.LessThan);
+        public static Token LessThanOrEquals = new Token(TokenType.LessThanOrEquals);
+        public static Token GreaterThan = new Token(TokenType.GreaterThan);
+        public static Token GreaterThanOrEquals = new Token(TokenType.GreaterThanOrEquals);
+        public static Token IntWord = new Token("int", TokenType.IntWord);
+
+        public static Token LongWord = new Token("long", TokenType.LongWord);
+
+        // todo:: лучше сделать Word, а не Constant
+        public static Token IntMaxValue = new Token("int.MaxValue", TokenType.Constant);
+        public static Token IntMinValue = new Token("int.MinValue", TokenType.Constant);
+        public static Token LongMaxValue = new Token("long.MaxValue", TokenType.Constant);
+        public static Token LongMinValue = new Token("long.MinValue", TokenType.Constant);
 
         public Token(string value)
         {
@@ -69,16 +96,36 @@ namespace Parser
     public class Lexer
     {
         private readonly string _program;
-        private string SupportedChars = "+-*/(),;=";
 
-        private readonly Dictionary<string, TokenType> KeyWords = new Dictionary<string, TokenType>
+        Dictionary<string, Token> keyWordsDictionary = new Dictionary<string, Token>()
         {
-            {"int", TokenType.IntWord},
-            {"uint", TokenType.UIntWord},
-            {"long", TokenType.LongWord},
-            {"ulong", TokenType.ULongWord},
-            {"return", TokenType.Return}
+            {"==", Token.EqualTo},
+            {"!=", Token.NotEqualTo},
+            {">=", Token.GreaterThanOrEquals},
+            {"<=", Token.LessThanOrEquals},
+            {"+", Token.Plus},
+            {"-", Token.Minus},
+            {"*", Token.Star},
+            {"/", Token.Slash},
+            {"(", Token.LeftParent},
+            {")", Token.RightParent},
+            {"{", Token.LeftBrace},
+            {"}", Token.RightBrace},
+            {";", Token.Semicolon},
+            {"=", Token.Assignment},
+            {",", Token.Comma},
+            {"if", Token.IfWord},
+            {"else", Token.ElseWord},
+            {"int", Token.IntWord},
+            {"long", Token.LongWord},
+            {"return", Token.Return},
+            {"int.MinValue", Token.IntMinValue},
+            {"int.MaxValue", Token.IntMaxValue},
+            {"long.MinValue", Token.LongMinValue},
+            {"long.MaxValue", Token.LongMaxValue},
         };
+
+        string[] SeqKeyWords => keyWordsDictionary.Select(x => x.Key).ToArray();
 
         public Lexer(string program)
         {
@@ -89,25 +136,14 @@ namespace Parser
         public IReadOnlyList<Token> ReadAll()
         {
             var tokens = new List<Token>();
+
             // todo pattern mathicg must be better
             for (var i = 0; i < _program.Length; i++)
             {
-                if (SupportedChars.Contains(_program[i]))
+                if (TryGetKeyWord(ref i, out var token))
                 {
-                    tokens.Add(_program[i] switch
-                    {
-                        '+' => Token.Plus,
-                        '-' => Token.Minus,
-                        '*' => Token.Star,
-                        '/' => Token.Slash,
-                        '(' => Token.OpeningBracket,
-                        ')' => Token.ClosingBracket,
-                        ',' => Token.Comma,
-                        ';' => Token.Semicolon,
-                        '=' => Token.Assignment
-                    });
+                    tokens.Add(token);
                 }
-
                 else if (long.TryParse(_program[i].ToString(), out _))
                 {
                     var sb = new StringBuilder();
@@ -123,16 +159,7 @@ namespace Parser
                 else if (IsMethodName(ref i, out string methodName))
                 {
                     tokens.Add(new Token(methodName, TokenType.Word));
-                    tokens.Add(Token.OpeningBracket);
-                }
-                else if (TryGetConstant(ref i, out var constant))
-                {
-                    tokens.Add(new Token(constant, TokenType.Constant));
-                    i--;
-                }
-                else if (TryGetKeyWord(ref i, out var nametype))
-                {
-                    tokens.Add(new Token(nametype.name, nametype.type));
+                    tokens.Add(Token.LeftParent);
                 }
                 else if (IsChar(_program[i]))
                 {
@@ -146,55 +173,42 @@ namespace Parser
             return tokens;
         }
 
-        private bool TryGetKeyWord(ref int i, out (string name, TokenType type) nameType)
+        private bool TryGetKeyWord(ref int i, out Token token)
         {
-            nameType = default;
-
-            var sb = new StringBuilder(4);
+            token = default;
             var j = i;
-            for (; j < _program.Length && _program[j] != ' '; j++)
-                sb.Append(_program[j]);
+            var sb = new StringBuilder();
+            var matchedTokens = new List<Token>();
 
-            if (KeyWords.TryGetValue(sb.ToString(), out var tokenType))
+            while (true)
             {
-                nameType = (sb.ToString(), tokenType);
-                i = j;
-                return true;
-            }
+                if (j == _program.Length)
+                {
+                    if (!matchedTokens.Any()) return false;
+                    token = matchedTokens.Last();
+                    i = j - 1;
+                    return true;
+                }
 
-            return false;
+                sb.Append(_program[j++]);
+
+                if (!SeqKeyWords.Any(x => x.StartsWith(sb.ToString())))
+                {
+                    if (!matchedTokens.Any()) return false;
+                    token = matchedTokens.Last();
+                    i = j - 2;
+                    return true;
+                }
+
+                if (keyWordsDictionary.TryGetValue(sb.ToString(), out var item))
+                {
+                    matchedTokens.Add(item);
+                }
+            }
         }
 
         private bool IsDigit(char c) => c >= '0' && c <= '9';
         private bool IsChar(char c) => c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z';
-
-        // todo кейсы, когда во вложанном выражении есть expression's не рабоатет
-        private bool IsMethodName(int i)
-        {
-            if (!IsChar(_program[i]))
-            {
-                return false;
-            }
-
-            i++;
-            for (; i < _program.Length && _program[i] != '('; i++)
-            {
-                if (!(IsChar(_program[i]) || IsDigit(_program[i])))
-                    return false;
-            }
-
-            if (i == _program.Length) return false;
-
-            i++;
-
-            for (; i < _program.Length && _program[i] != ')'; i++)
-            {
-                if (!(IsChar(_program[i]) || IsDigit(_program[i]) || _program[i] == ',' || _program[i] == '-'))
-                    return false;
-            }
-
-            return true;
-        }
 
         private bool IsMethodName(ref int i, out string methodName)
         {
@@ -240,34 +254,6 @@ namespace Parser
                 methodName = methodNameToString;
                 i = j;
                 return true;
-            }
-
-            return false;
-        }
-
-        private bool TryGetConstant(ref int i, out string constant)
-        {
-            constant = null;
-            var names = Constants.Dictionary.Select(x => x.Key).ToList();
-            var sb = new StringBuilder();
-            foreach (var name in names)
-            {
-                if (_program.Length - i < name.Length)
-                    continue;
-
-                for (int j = i; j < i + name.Length; j++)
-                {
-                    sb.Append(_program[j]);
-                }
-
-                if (sb.ToString() == name)
-                {
-                    constant = name;
-                    i += name.Length;
-                    return true;
-                }
-
-                sb.Clear();
             }
 
             return false;

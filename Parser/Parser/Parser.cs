@@ -1,8 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Linq.Expressions;
-using System.Security.Principal;
 using Compiler;
 
 namespace Parser
@@ -15,7 +12,9 @@ namespace Parser
         Unary,
         MethodCall,
         Assignment,
-        Return
+        Logical,
+        Return,
+        IfElse
     }
 
     public interface IExpression
@@ -27,8 +26,10 @@ namespace Parser
     public enum CompilerType
     {
         Int = 1,
-        UInt,
+
+        // UInt,
         Long,
+        Bool,
     }
 
     public class Parser
@@ -38,7 +39,7 @@ namespace Parser
         private readonly bool _constantFolding;
         private Dictionary<string, CompilerType> _parameters;
         private Dictionary<string, CompilerType> _localVariables = new Dictionary<string, CompilerType>();
-
+        private TokenSequence _tokenSequence;
         public Parser(
             IReadOnlyList<Token> tokens,
             Dictionary<string, CompilerType> parameters = null,
@@ -46,6 +47,7 @@ namespace Parser
             bool constantFolding = true)
         {
             _tokens = tokens;
+            _tokenSequence = new TokenSequence(_tokens);
             _parameters = parameters ?? new Dictionary<string, CompilerType>();
             _closedFields = closedFields ?? new Dictionary<string, CompilerType>();
             _constantFolding = constantFolding;
@@ -94,8 +96,7 @@ namespace Parser
 
         public IStatement Statement()
         {
-            if ((Current?.Type == TokenType.IntWord || Current?.Type == TokenType.LongWord ||
-                 Current?.Type == TokenType.UIntWord) &&
+            if ((Current?.Type == TokenType.IntWord || Current?.Type == TokenType.LongWord) &&
                 _tokens[Index + 2].Type == TokenType.Assignment)
             {
                 var keywordType = Current.Type;
@@ -105,7 +106,6 @@ namespace Parser
                 {
                     TokenType.IntWord => CompilerType.Int,
                     TokenType.LongWord => CompilerType.Long,
-                    TokenType.UIntWord => CompilerType.UInt
                 };
 
                 if (_parameters.ContainsKey(Current.Value))
@@ -134,7 +134,7 @@ namespace Parser
                 return new AssignmentStatement(variable, expression);
             }
 
-            if (Current?.Type == TokenType.Return)
+            if (Current?.Type == TokenType.ReturnWord)
             {
                 Index++;
                 var expression = Expression();
@@ -147,7 +147,87 @@ namespace Parser
                 return new ReturnStatement(expression);
             }
 
+            if (Current?.Type == TokenType.IfWord)
+            {
+                Index++;
+                if (Current.Type != TokenType.LeftParent)
+                {
+                    throw new Exception("Missing Left Parent");
+                }
+
+                Index++;
+                var expression = Logical();
+
+                if (Current.Type != TokenType.RightParent)
+                {
+                    throw new Exception("Missing Right Parent");
+                }
+
+                Index++;
+                if (Current.Type != TokenType.LeftBrace)
+                {
+                    throw new Exception("Missing left brace");
+                }
+
+                Index++;
+                var ifStatement = Statement();
+
+                if (Current.Type != TokenType.RightBrace)
+                {
+                    throw new Exception("Missing right brace");
+                }
+
+                if (Index == _tokens.Count - 1 && _tokens[Index + 1]?.Type != TokenType.ElseWord)
+                {
+                    return new IfElseStatement((LogicalBinaryExpression) expression, ifStatement);
+                }
+
+                Index++;
+                if (Current.Type != TokenType.LeftBrace)
+                {
+                    throw new Exception("Missing left brace");
+                }
+
+                Index++;
+                var elseStatement = Statement();
+
+                if (Current.Type != TokenType.RightBrace)
+                {
+                    throw new Exception("Missing right brace");
+                }
+
+                return new IfElseStatement((LogicalBinaryExpression) expression, ifStatement, elseStatement);
+            }
+
             throw new Exception("дописать остальные виды statements");
+        }
+
+        public IExpression Logical()
+        {
+            var left = Expression();
+            switch (Current.Type)
+            {
+                case TokenType.LessThan:
+                    Index++;
+                    return new LogicalBinaryExpression(left, Expression(), LogicalOperator.Less);
+                case TokenType.LessThanOrEquals:
+                    Index++;
+                    return new LogicalBinaryExpression(left, Expression(), LogicalOperator.LessOrEq);
+                case TokenType.GreaterThan:
+                    Index++;
+                    return new LogicalBinaryExpression(left, Expression(), LogicalOperator.Greater);
+                case TokenType.GreaterThanOrEquals:
+                    Index++;
+                    return new LogicalBinaryExpression(left, Expression(), LogicalOperator.GreaterOrEq);
+                case TokenType.EqualTo:
+                    Index++;
+                    return new LogicalBinaryExpression(left, Expression(), LogicalOperator.Eq);
+                case TokenType.NotEqualTo:
+                    Index++;
+                    return new LogicalBinaryExpression(left, Expression(), LogicalOperator.NoEq);
+                default:
+                    return left;
+            }
         }
 
         public IExpression Expression()
@@ -238,17 +318,6 @@ namespace Parser
                                 TokenType.Slash => (iLeft / iRight),
                             };
                             return ReturnExpression(intResult.ToString(), CompilerType.Int);
-                        case CompilerType.UInt:
-                            var uiLeft = uint.Parse(leftValue);
-                            var uiRight = uint.Parse(rightValue);
-                            uint uIntResult = operationType switch
-                            {
-                                TokenType.Plus => (uiLeft + uiRight),
-                                TokenType.Minus => (uiLeft - uiRight),
-                                TokenType.Star => (uiLeft * uiRight),
-                                TokenType.Slash => (uiLeft / uiRight),
-                            };
-                            return ReturnExpression(uIntResult.ToString(), CompilerType.UInt);
                         case CompilerType.Long:
                             var lLeft = long.Parse(leftValue);
                             var lRight = long.Parse(rightValue);
@@ -466,11 +535,11 @@ namespace Parser
                     return new VariableExpression(varToken.Value, variableType);
             }
 
-            if (Current?.Type == TokenType.OpeningBracket)
+            if (Current?.Type == TokenType.LeftParent)
             {
                 Index++;
                 var expression = Expression();
-                if (Current?.Type != TokenType.ClosingBracket)
+                if (Current?.Type != TokenType.RightParent)
                 {
                     throw new Exception("Count of opening brackets must be equals count of closing brackets");
                 }
@@ -479,7 +548,7 @@ namespace Parser
                 return expression;
             }
 
-            if (Current?.Type == TokenType.ClosingBracket)
+            if (Current?.Type == TokenType.RightParent)
             {
                 throw new Exception("Amount of opening brackets have to equals amount of closing brackets");
             }
@@ -488,18 +557,18 @@ namespace Parser
             {
                 var methodName = Current.Value;
                 Index++;
-                if (Current.Type != TokenType.OpeningBracket)
+                if (Current.Type != TokenType.LeftParent)
                 {
                     throw new Exception("Opening bracket must be after method name");
                 }
 
                 Index++;
                 var @params = new List<IExpression>();
-                while (Current?.Type != TokenType.ClosingBracket)
+                while (Current?.Type != TokenType.RightParent)
                 {
                     @params.Add(Expression());
 
-                    if (Current.Type != TokenType.Comma && Current.Type != TokenType.ClosingBracket)
+                    if (Current.Type != TokenType.Comma && Current.Type != TokenType.RightParent)
                     {
                         throw new Exception("Method parameters must be separated by comma");
                     }

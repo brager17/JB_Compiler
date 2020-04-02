@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq.Expressions;
 using Parser.Bumping;
 
 namespace Bumper
@@ -7,7 +8,7 @@ namespace Bumper
     {
         static void Main(string[] args)
         {
-            // Bumping.StatementsExecutionIdentical();
+            // Bumping.ExpressionsExecutionIsIdentical();
             M();
         }
 
@@ -15,10 +16,14 @@ namespace Bumper
 
         static void M()
         {
-
             uint w = uint.MaxValue;
             uint ww = 10;
-           
+
+            bool t = 1 < 4 != 2 > 3;
+            bool t1 = 2 > 3 == true;
+
+            Expression<Func<int, int, bool>> e = (x, y) => x > 1 && y > 1 == (x % 2 == 0);
+
             // var t = (int) (object) long.MaxValue-2;
             // long x = long.MaxValue;
             // long xx = long.MaxValue - 1;

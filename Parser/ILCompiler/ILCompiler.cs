@@ -96,7 +96,8 @@ namespace Compiler
         }
     }
 
-    public class CompileExpressionVisitor
+
+    public class CompileExpressionVisitor : ExpressionVisitor
     {
         public Dictionary<string, CompilerType> Variables { get; }
 
@@ -152,7 +153,7 @@ namespace Compiler
                 {
                     CompilerType.Long => typeof(long),
                     CompilerType.Int => typeof(int),
-                    CompilerType.UInt => typeof(uint),
+                    // CompilerType.UInt => typeof(uint),
                     _ => throw new ArgumentOutOfRangeException()
                 };
 
@@ -161,13 +162,13 @@ namespace Compiler
 
             foreach (var statement in statements)
             {
-                Visit((dynamic) statement);
+                VisitStatement(statement);
             }
         }
 
         public void Start(IExpression expression)
         {
-            Visit((dynamic) expression);
+            VisitExpression(expression);
             logger.Log("ret");
             _ilGenerator.Emit(OpCodes.Ret);
         }
@@ -180,10 +181,24 @@ namespace Compiler
             return 1L;
         }
 
-        public BinaryExpression Visit(BinaryExpression binaryExpression)
+        public override BinaryExpression VisitBinary(BinaryExpression binaryExpression)
         {
-            var left = Visit((dynamic) binaryExpression.Left);
-            var right = Visit((dynamic) binaryExpression.Right);
+            var left = VisitExpression(binaryExpression.Left);
+            if (binaryExpression.Left.ReturnType == CompilerType.Int &&
+                binaryExpression.Right.ReturnType == CompilerType.Long)
+            {
+                logger.Log("conv.i8");
+                _ilGenerator.Emit(OpCodes.Conv_I8);
+            }
+
+            var right = VisitExpression(binaryExpression.Right);
+            if (binaryExpression.Left.ReturnType == CompilerType.Long &&
+                binaryExpression.Right.ReturnType == CompilerType.Int)
+            {
+                logger.Log("conv.i8");
+                _ilGenerator.Emit(OpCodes.Conv_I8);
+            }
+
             switch (binaryExpression.TokenType)
             {
                 case TokenType.Plus:
@@ -207,26 +222,26 @@ namespace Compiler
             return binaryExpression;
         }
 
-        public ReturnStatement Visit(ReturnStatement returnStatement)
+        public override ReturnStatement VisitReturn(ReturnStatement returnStatement)
         {
-            Visit((dynamic) returnStatement.Returned);
+            VisitExpression(returnStatement.Returned);
             logger.Log("ret");
             _ilGenerator.Emit(OpCodes.Ret);
             return returnStatement;
         }
 
-        public AssignmentStatement Visit(AssignmentStatement assignmentStatement)
+        public override AssignmentStatement VisitAssignment(AssignmentStatement assignmentStatement)
         {
-            Visit((dynamic) assignmentStatement.Right);
+            VisitExpression(assignmentStatement.Right);
             var count = Array.IndexOf(_localVariables.Select(x => x.Key).ToArray(), assignmentStatement.Left.Name);
             logger.Log($"stloc {count}");
             _ilGenerator.Emit(OpCodes.Stloc, count);
             return assignmentStatement;
         }
 
-        public UnaryExpression Visit(UnaryExpression unaryExpression)
+        public override UnaryExpression VisitUnary(UnaryExpression unaryExpression)
         {
-            var expression = Visit((dynamic) unaryExpression.Expression);
+            var expression = VisitExpression(unaryExpression.Expression);
             logger.Log("neg");
             _ilGenerator.Emit(OpCodes.Neg);
             return new UnaryExpression(expression);
@@ -273,7 +288,7 @@ namespace Compiler
                     _ilGenerator.Emit(OpCodes.Ldc_I4_8);
                     break;
                 default:
-                    if (value >= -128 && value <= 128)
+                    if (value > -128 && value < 128)
                     {
                         logger.Log($"ldc.i4.s {value}");
                         _ilGenerator.Emit(OpCodes.Ldc_I4_S, (sbyte) value);
@@ -288,7 +303,7 @@ namespace Compiler
             }
         }
 
-        public PrimaryExpression Visit(PrimaryExpression primaryExpression)
+        public override PrimaryExpression VisitPrimary(PrimaryExpression primaryExpression)
         {
             if (primaryExpression.ReturnType == CompilerType.Long)
             {
@@ -298,35 +313,14 @@ namespace Compiler
             else if (primaryExpression.ReturnType == CompilerType.Int)
             {
                 IntEmit(primaryExpression.AsInt());
-                logger.Log("conv.i8");
-                _ilGenerator.Emit(OpCodes.Conv_I8);
-            }
-            else if (primaryExpression.ReturnType == CompilerType.UInt)
-            {
-                var q = primaryExpression.AsUInt();
-                if (q == uint.MaxValue)
-                {
-                    logger.Log("ldc.I4.m1");
-                    _ilGenerator.Emit(OpCodes.Ldc_I4_M1);
-                }
-                else
-                {
-                    IntEmit(int.MinValue + (int) (q - int.MaxValue - 1));
-                }
-
-                logger.Log("conv.u8");
-                _ilGenerator.Emit(OpCodes.Conv_U8);
             }
 
             return primaryExpression;
         }
 
-        public MethodCallExpression Visit(MethodCallExpression methodCallExpression)
+        public override MethodCallExpression VisitMethod(MethodCallExpression methodCallExpression)
         {
-            foreach (var parameter in methodCallExpression.Parameters)
-            {
-                Visit((dynamic) parameter);
-            }
+            base.VisitMethod(methodCallExpression);
 
             var method = _closedMethods[methodCallExpression.Name];
             var logParams = string.Join(",", method.GetParameters().Select(x => x.ParameterType.ToString()));
@@ -335,7 +329,7 @@ namespace Compiler
             return methodCallExpression;
         }
 
-        public VariableExpression Visit(VariableExpression variable)
+        public override VariableExpression VisitVariable(VariableExpression variable)
         {
             var index = Array.IndexOf(_parameters, variable.Name);
             if (index != -1)

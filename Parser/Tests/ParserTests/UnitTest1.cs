@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Security.Principal;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -36,7 +37,7 @@ namespace Parser
         [Fact]
         public void Test1()
         {
-            var result = TestHelper.GetParseResultExpression("1+1/13",false);
+            var result = TestHelper.GetParseResultExpression("1+1/13", false);
 
             JsonAssert(
                 new BinaryExpression(
@@ -50,7 +51,7 @@ namespace Parser
         [Fact]
         public void Test2()
         {
-            var result = TestHelper.GetParseResultExpression("1-13",false);
+            var result = TestHelper.GetParseResultExpression("1-13", false);
 
             JsonAssert(
                 new BinaryExpression(new PrimaryExpression("1"), new PrimaryExpression("13"), TokenType.Minus),
@@ -60,7 +61,7 @@ namespace Parser
         [Fact]
         public void Test3()
         {
-            var result = TestHelper.GetParseResultExpression("(2+2)*2",false);
+            var result = TestHelper.GetParseResultExpression("(2+2)*2", false);
 
             JsonAssert(
                 new BinaryExpression(
@@ -73,7 +74,7 @@ namespace Parser
         // todo : modify
         public void Test4()
         {
-            var @exception = Assert.Throws<Exception>(() => TestHelper.GetParseResultExpression("(2+2))*2",false));
+            var @exception = Assert.Throws<Exception>(() => TestHelper.GetParseResultExpression("(2+2))*2", false));
             Assert.Equal(exception.Message, "Expression is incorrect");
         }
 
@@ -211,6 +212,29 @@ namespace Parser
             {
                 _testOutputHelper.WriteLine(instruction.ToString());
             }
+        }
+
+        [Fact]
+        public void Test11()
+        {
+            var expr =
+                @"2*(9503-(128+y*z+40*y-480*x/2803+(35+y*0))*x)*529831844*z+40/(5+x)*z*9/z*9*z-37136330941/y+971/x-69";
+            var x = 2040216428;
+            var y = 274473045;
+            var z = 25132344;
+
+            var t = TestHelper.GeneratedExpressionMySelf(expr, out var func);
+            var tt = TestHelper.GeneratedRoslyn(expr, out var roslynFunc);
+
+            Assert.Equal(roslynFunc(x, y, z), func(x, y, z));
+        }
+
+        [Fact]
+        public void Tes14t()
+        {
+            sbyte a = 12;
+            sbyte b = 12;
+            var r = a + b;
         }
     }
 }
