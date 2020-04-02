@@ -11,8 +11,10 @@ namespace Parser
             Left = left;
             Right = right;
             TokenType = tokenType;
+            ReturnType = left.ReturnType > right.ReturnType ? left.ReturnType : right.ReturnType;
         }
 
         public ExpressionType ExpressionType { get; } = ExpressionType.Binary;
+        public CompilerType ReturnType { get; }
     }
 }

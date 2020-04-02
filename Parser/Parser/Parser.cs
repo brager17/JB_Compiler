@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Security.Principal;
 using Compiler;
 
 namespace Parser
@@ -20,34 +21,39 @@ namespace Parser
     public interface IExpression
     {
         public ExpressionType ExpressionType { get; }
+        public CompilerType ReturnType { get; }
     }
 
     public enum CompilerType
     {
-        Long = 1,
-        Int
+        Int = 1,
+        UInt,
+        Long,
     }
 
     public class Parser
     {
         private readonly IReadOnlyList<Token> _tokens;
+        private readonly Dictionary<string, CompilerType> _closedFields;
         private readonly bool _constantFolding;
-        private Expression _expression;
-        private Dictionary<string, CompilerType> _variables = new Dictionary<string, CompilerType>();
+        private Dictionary<string, CompilerType> _parameters;
+        private Dictionary<string, CompilerType> _localVariables = new Dictionary<string, CompilerType>();
 
         public Parser(
             IReadOnlyList<Token> tokens,
-            Dictionary<string, CompilerType> variables = null,
+            Dictionary<string, CompilerType> parameters = null,
+            Dictionary<string, CompilerType> closedFields = null,
             bool constantFolding = true)
         {
             _tokens = tokens;
-            _variables = variables ?? new Dictionary<string, CompilerType>();
+            _parameters = parameters ?? new Dictionary<string, CompilerType>();
+            _closedFields = closedFields ?? new Dictionary<string, CompilerType>();
             _constantFolding = constantFolding;
         }
 
         public IStatement[] Parse()
         {
-            List<IStatement> list = new List<IStatement>();
+            var list = new List<IStatement>();
             while (Index < _tokens.Count)
             {
                 list.Add(Statement());
@@ -58,13 +64,38 @@ namespace Parser
 
         public IExpression ParseExpression()
         {
-            return Expression();
+            var expression = Expression();
+            // todo можно улучшить, потому что не конкретизируем ошибку
+            if (Index <= _tokens.Count - 1)
+            {
+                throw new Exception("Expression is incorrect");
+            }
+
+            return expression;
         }
 
+        public bool CheckCannotImplicitConversion(VariableExpression left, IExpression right)
+        {
+            if (left.ReturnType == CompilerType.Long) return false;
+
+            if (right.TryCast<PrimaryExpression>(out var primary) && primary.ReturnType == CompilerType.Long)
+                return true;
+
+            if (right.TryCast<UnaryExpression>(out var unaryExpression) &&
+                unaryExpression.Expression.TryCast(out primary) && primary.ReturnType == CompilerType.Long)
+                return true;
+
+            if (right.TryCast<VariableExpression>(out var variable) && variable.ReturnType == CompilerType.Long)
+                return true;
+
+
+            return false;
+        }
 
         public IStatement Statement()
         {
-            if ((Current?.Type == TokenType.IntWord || Current?.Type == TokenType.LongWord) &&
+            if ((Current?.Type == TokenType.IntWord || Current?.Type == TokenType.LongWord ||
+                 Current?.Type == TokenType.UIntWord) &&
                 _tokens[Index + 2].Type == TokenType.Assignment)
             {
                 var keywordType = Current.Type;
@@ -73,13 +104,25 @@ namespace Parser
                 var type = keywordType switch
                 {
                     TokenType.IntWord => CompilerType.Int,
-                    TokenType.LongWord => CompilerType.Long
+                    TokenType.LongWord => CompilerType.Long,
+                    TokenType.UIntWord => CompilerType.UInt
                 };
 
+                if (_parameters.ContainsKey(Current.Value))
+                {
+                    throw new Exception(
+                        $"A local or parameter named '{Current.Value}' cannot be declared in this scope because that name is used in an enclosing local scope to define a local or parameter");
+                }
+
                 var variable = new VariableExpression(Current.Value, type);
-                _variables.Add(variable.Name, variable.CompilerType);
+                _localVariables.Add(variable.Name, variable.ReturnType);
                 Index += 2; // variable name + assignment sign
                 var expression = Expression();
+
+                if (CheckCannotImplicitConversion(variable, expression))
+                {
+                    throw new Exception("Cannot implicitly convert type 'long ' to int");
+                }
 
                 if (Current?.Type != TokenType.Semicolon)
                 {
@@ -99,6 +142,7 @@ namespace Parser
                 {
                     throw new Exception("Return must be ended by semicolon");
                 }
+
                 Index++;
                 return new ReturnStatement(expression);
             }
@@ -160,142 +204,83 @@ namespace Parser
         }
 
 
-        private void CheckOverflow(long left, CompilerType leftCompilerType, long right, CompilerType rightCompilerType,
-            TokenType type)
+        private IExpression TryOperationWithCheckOverflow(
+            string leftValue,
+            CompilerType leftType,
+            string rightValue,
+            CompilerType rightType,
+            TokenType operationType)
         {
             // it is not best way
-            checked
+            try
             {
-                if (leftCompilerType == CompilerType.Int && rightCompilerType == CompilerType.Int)
+                IExpression ReturnExpression(string num, CompilerType type)
                 {
-                    var iLeft = (int) left;
-                    var iRight = (int) right;
-                    switch (type)
+                    if (num[0] == '-')
+                        return new UnaryExpression(new PrimaryExpression(num[1..], type));
+                    return new PrimaryExpression(num, type);
+                }
+
+                checked
+                {
+                    var maxCompilerType = leftType < rightType ? rightType : leftType;
+
+                    switch (maxCompilerType)
                     {
-                        case TokenType.Plus:
-                            _ = iLeft + iRight;
-                            break;
-                        case TokenType.Minus:
-                            _ = iLeft - iRight;
-                            break;
-                        case TokenType.Star:
-                            _ = iLeft * iRight;
-                            break;
+                        case CompilerType.Int:
+                            var iLeft = int.Parse(leftValue);
+                            var iRight = int.Parse(rightValue);
+                            int intResult = operationType switch
+                            {
+                                TokenType.Plus => (iLeft + iRight),
+                                TokenType.Minus => (iLeft - iRight),
+                                TokenType.Star => (iLeft * iRight),
+                                TokenType.Slash => (iLeft / iRight),
+                            };
+                            return ReturnExpression(intResult.ToString(), CompilerType.Int);
+                        case CompilerType.UInt:
+                            var uiLeft = uint.Parse(leftValue);
+                            var uiRight = uint.Parse(rightValue);
+                            uint uIntResult = operationType switch
+                            {
+                                TokenType.Plus => (uiLeft + uiRight),
+                                TokenType.Minus => (uiLeft - uiRight),
+                                TokenType.Star => (uiLeft * uiRight),
+                                TokenType.Slash => (uiLeft / uiRight),
+                            };
+                            return ReturnExpression(uIntResult.ToString(), CompilerType.UInt);
+                        case CompilerType.Long:
+                            var lLeft = long.Parse(leftValue);
+                            var lRight = long.Parse(rightValue);
+                            long longResult = operationType switch
+                            {
+                                TokenType.Plus => (lLeft + lRight),
+                                TokenType.Minus => (lLeft - lRight),
+                                TokenType.Star => (lLeft * lRight),
+                                TokenType.Slash => (lLeft / lRight),
+                            };
+                            return ReturnExpression(longResult.ToString(), CompilerType.Long);
+                        default:
+                            throw new ArgumentOutOfRangeException();
                     }
                 }
-
-                switch (type)
-                {
-                    case TokenType.Plus:
-                        _ = left + right;
-                        break;
-                    case TokenType.Minus:
-                        _ = left - right;
-                        break;
-                    case TokenType.Star:
-                        _ = left * right;
-                        break;
-                }
             }
-
-
-            //
-            // if (type == TokenType.Plus)
-            // {
-            //     if (IsInt(left) && IsInt(right))
-            //     {
-            //         int iLeft = (int) left;
-            //         int iRight = (int) right;
-            //
-            //         if (iLeft > 0 && iRight > 0 && iLeft + iRight < 0)
-            //             return true;
-            //         if (iLeft < 0 && iRight < 0 && iLeft + iRight > 0)
-            //             return true;
-            //     }
-            //     else
-            //     {
-            //         if (left > 0 && right > 0 && left + right < 0)
-            //             return true;
-            //         if (left < 0 && right < 0 && left + right > 0)
-            //             return true;
-            //     }
-            // }
-            // else if (type == TokenType.Minus)
-            // {
-            //     if (IsInt(left) && IsInt(right))
-            //     {
-            //         int iLeft = (int) left;
-            //         int iRight = (int) right;
-            //
-            //         if (iLeft < 0 && iRight > 0 && iLeft - iRight > 0)
-            //             return true;
-            //         if (iLeft > 0 && iRight < 0 && iLeft - iRight < 0)
-            //             return true;
-            //     }
-            //
-            //     else if (left < 0 && right > 0 && left - right > 0)
-            //         return true;
-            //     else if (left > 0 && left < 0 && left - left < 0)
-            //         return true;
-            // }
-            // else if (type == TokenType.Star)
-            // {
-            //     if (IsInt(left) && IsInt(right))
-            //     {
-            //         int iLeft = (int) left;
-            //         int iRight = (int) right;
-            //
-            //         if (iLeft < 0 && iRight < 0 && iLeft * iRight < 0) return true;
-            //         if (iLeft > 0 && iRight < 0 && iLeft * iRight > 0) return true;
-            //         if (iLeft < 0 && iRight > 0 && iLeft * iRight > 0) return true;
-            //         if (iLeft > 0 && iRight > 0 && iLeft * iRight < 0) return true;
-            //     }
-            //
-            //     else
-            //     {
-            //         if (left < 0 && right < 0 && left * right < 0) return true;
-            //         if (left > 0 && right < 0 && left * right > 0) return true;
-            //         if (left < 0 && right > 0 && left * right > 0) return true;
-            //         if (left > 0 && right > 0 && left * right < 0) return true;
-            //     }
-            // }
-            //
-            // return false;
-        }
-
-        private IExpression ConstantFold(long left, CompilerType leftCompilerType, long right,
-            CompilerType rightCompilerType,
-            TokenType type)
-        {
-            CheckOverflow(left, leftCompilerType, right, rightCompilerType, type);
-            long result;
-            switch (type)
+            catch (Exception ex)
             {
-                case TokenType.Plus:
-                    result = left + right;
-                    break;
-                case TokenType.Minus:
-                    result = left - right;
-                    break;
-                case TokenType.Star:
-                    result = left * right;
-                    break;
-                case TokenType.Slash:
-                    result = left / right;
-                    break;
-                default: throw new Exception();
+                throw new Exception("The operation is overflow in compile mode", ex);
             }
-
-            var primaryType = leftCompilerType == CompilerType.Int && rightCompilerType == CompilerType.Int
-                ? CompilerType.Int
-                : CompilerType.Long;
-
-            return result >= 0
-                ? (IExpression) new PrimaryExpression(result.ToString(), primaryType)
-                : new UnaryExpression(new PrimaryExpression((-result).ToString(), primaryType));
         }
 
-        private bool TryFold(IExpression expression, out long value, out CompilerType compilerType)
+        private IExpression ConstantFold(string leftValue,
+            CompilerType leftType,
+            string rightValue,
+            CompilerType rightType,
+            TokenType operationType)
+        {
+            return TryOperationWithCheckOverflow(leftValue, leftType, rightValue, rightType, operationType);
+        }
+
+        private bool TryFold(IExpression expression, out string value, out CompilerType compilerType)
         {
             value = default;
             compilerType = default;
@@ -304,17 +289,16 @@ namespace Parser
             {
                 if (primaryExpression.IsFoldedAfterMul0)
                     return false;
-
-                value = primaryExpression.LongValue;
-                compilerType = primaryExpression.CompilerType;
+                value = primaryExpression.Value;
+                compilerType = primaryExpression.ReturnType;
                 return true;
             }
 
             if (expression.TryCast<UnaryExpression>(out var unary) &&
                 unary.Expression.TryCast(out primaryExpression))
             {
-                value = -primaryExpression.LongValue;
-                compilerType = primaryExpression.CompilerType;
+                value = '-' + primaryExpression.Value;
+                compilerType = primaryExpression.ReturnType;
                 return true;
             }
 
@@ -338,7 +322,7 @@ namespace Parser
                         // (3*4) = 12; 
                         result = ConstantFold(leftValue, leftType, rightValue, rightType, TokenType.Star);
                     }
-                    else if (TryFold(result, out leftValue, out _) && leftValue == 1)
+                    else if (TryFold(result, out leftValue, out _) && leftValue == "1")
                     {
                         // 1*(x+y-12) = x+y-12; 
                         result = right;
@@ -354,7 +338,7 @@ namespace Parser
                     // (x+y-12)*0 = 0
                     // result = PrimaryExpression.FoldedAfterMul0;
                     // }
-                    else if (TryFold(right, out rightValue, out _) && rightValue == 1)
+                    else if (TryFold(right, out rightValue, out _) && rightValue == "1")
                     {
                         // (x+y-12)*1 = x+y-12; 
                         result = result;
@@ -375,12 +359,12 @@ namespace Parser
                         TryFold(right, out var rightValue, out var rightType))
                     {
                         //12/0 
-                        if (rightValue == 0)
+                        if (rightValue == "0")
                             throw new DivideByZeroException();
 
                         result = ConstantFold(leftValue, leftType, rightValue, rightType, TokenType.Slash);
                     }
-                    else if (TryFold(right, out rightValue, out _) && rightValue == 1)
+                    else if (TryFold(right, out rightValue, out _) && rightValue == "1")
                     {
                         // (x+y-12)/1 = (x+y-12)
                         result = result;
@@ -406,7 +390,13 @@ namespace Parser
         {
             if (Current.Type == TokenType.Minus)
             {
+                if (_tokens[Index + 1].Type == TokenType.Num)
+                {
+                    return new UnaryExpression(ParseNumber());
+                }
+
                 Index++;
+
                 var expression = Primary();
                 if (_constantFolding && expression.TryCast<UnaryExpression>(out var unary) &&
                     unary.UnaryType == UnaryType.Negative &&
@@ -421,13 +411,48 @@ namespace Parser
             return Primary();
         }
 
+        private IExpression ParseNumber()
+        {
+            if (Current.Type == TokenType.Minus)
+            {
+                Index++;
+                var stringNumber = Current.Value;
+                if (PrimaryExpression.GetPrimaryType('-' + Current.Value, out var compilerType))
+                {
+                    Index++;
+                    return new PrimaryExpression(stringNumber, compilerType);
+                }
+            }
+            else
+            {
+                var stringNumber = Current.Value;
+                if (PrimaryExpression.GetPrimaryType(Current.Value, out var compilerType))
+                {
+                    Index++;
+                    return new PrimaryExpression(stringNumber, compilerType);
+                }
+            }
+
+            throw new Exception("Integral constant is too large");
+        }
+
         public IExpression Primary()
         {
-            if (long.TryParse(Current.Value, out var value))
+            if (Current.Type == TokenType.Num)
             {
-                var stringValue = Current.Value;
-                Index++;
-                return new PrimaryExpression(stringValue);
+                return ParseNumber();
+            }
+
+            if (Current.Type == TokenType.Num)
+            {
+                var stringNumber = Current.Value;
+                if (PrimaryExpression.GetPrimaryType(Current.Value, out var compilerType))
+                {
+                    Index++;
+                    return new PrimaryExpression(stringNumber, compilerType);
+                }
+
+                throw new Exception("Integral constant is too large");
             }
 
             if (Current?.Type == TokenType.Variable)
@@ -435,7 +460,9 @@ namespace Parser
                 var varToken = Current;
                 Index++;
 
-                if (_variables.TryGetValue(varToken.Value, out var variableType))
+                if (_parameters.TryGetValue(varToken.Value, out var variableType) ||
+                    _closedFields.TryGetValue(varToken.Value, out variableType) ||
+                    _localVariables.TryGetValue(varToken.Value, out variableType))
                     return new VariableExpression(varToken.Value, variableType);
             }
 
@@ -491,12 +518,11 @@ namespace Parser
 
             if (Current?.Type == TokenType.Constant)
             {
-                if (Constants.Dictionary.TryGetValue(Current.Value, out var constantValue))
+                if (Constants.Dictionary.TryGetValue(Current.Value, out var item))
                 {
                     Index++;
-                    var primaryType = PrimaryExpression.GetPrimaryType(constantValue);
-                    if (constantValue >= 0) return new PrimaryExpression(constantValue.ToString(), primaryType);
-                    return new UnaryExpression(new PrimaryExpression((-constantValue).ToString(), primaryType));
+                    if (item.Item1[0] != '-') return new PrimaryExpression(item.Item1, item.Item2);
+                    return new UnaryExpression(new PrimaryExpression(item.Item1[1..], item.Item2));
                 }
 
                 throw new Exception("Unknown constant");

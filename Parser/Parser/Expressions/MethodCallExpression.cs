@@ -15,5 +15,6 @@ namespace Parser
         }
 
         public ExpressionType ExpressionType { get; } = ExpressionType.MethodCall;
+        public CompilerType ReturnType { get; } = CompilerType.Long;
     }
 }

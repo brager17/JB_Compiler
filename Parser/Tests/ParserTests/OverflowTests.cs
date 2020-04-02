@@ -1,4 +1,6 @@
 using System;
+using System.Linq.Expressions;
+using System.Reflection;
 using Xunit;
 
 namespace Parser
@@ -18,7 +20,8 @@ namespace Parser
         [InlineData("long.MaxValue*(-2)")]
         public void Parser__OverflowingComping__ThrowException(string expr)
         {
-            Assert.Throws<OverflowException>(() => TestHelper.GetParseResultExpression(expr));
+            var exception = Assert.Throws<Exception>(() => TestHelper.GetParseResultExpression(expr));
+            Assert.Equal("The operation is overflow in compile mode",exception.Message);
         }
 
 
@@ -68,6 +71,49 @@ namespace Parser
         public void T(int x, int y)
         {
             var t = (int.MaxValue / 10 * x) * int.MaxValue;
+        }
+
+        [Fact]
+        public void ConstantIsVeryLarge()
+        {
+            var s = "36076070326337946946";
+            var exception = Assert.Throws<Exception>(() => TestHelper.GetParseResultExpression(s));
+            Assert.Equal("Integral constant is too large", exception.Message);
+        }
+
+        [Fact]
+        public void IntOverflow()
+        {
+            var expr = @"4220906890 * (95)";
+            var exception = Assert.Throws<Exception>(() => TestHelper.GetParseResultExpression(expr));
+            Assert.Equal("The operation is overflow in compile mode", exception.Message);
+        }
+
+        [Theory]
+        [InlineData("int.MaxValue", CompilerType.Int)]
+        [InlineData("2147483647", CompilerType.Int)]
+        [InlineData("uint.MaxValue", CompilerType.UInt)]
+        [InlineData("4294967295", CompilerType.UInt)]
+        [InlineData("uint.MinValue", CompilerType.UInt)]
+        [InlineData("long.MaxValue", CompilerType.Long)]
+        [InlineData("9223372036854775807", CompilerType.Long)]
+        [InlineData("0", CompilerType.Int)]
+        public void CorrectTypesDefined__PositiveOrNeutralConstants(string expression, CompilerType expected)
+        {
+            var result = TestHelper.GetParseResultExpression(expression);
+            Assert.Equal(expected, ((PrimaryExpression) result).ReturnType);
+        }
+
+
+        [Theory]
+        [InlineData("int.MinValue", CompilerType.Int)]
+        [InlineData("-2147483648", CompilerType.Int)]
+        [InlineData("long.MinValue", CompilerType.Long)]
+        [InlineData("-9223372036854775808", CompilerType.Long)]
+        public void CorrectTypesDefined__NegativeConstants(string expression, CompilerType expected)
+        {
+            var result = TestHelper.GetParseResultExpression(expression);
+            Assert.Equal(expected, ((PrimaryExpression) ((UnaryExpression) result).Expression).ReturnType);
         }
     }
 }

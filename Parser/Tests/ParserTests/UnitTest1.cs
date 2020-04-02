@@ -70,11 +70,11 @@ namespace Parser
         }
 
         [Fact]
-        // todo не разобран случай когда ((2+2)*2, тогда тоже нужно вернуть нормальную ошибку
+        // todo : modify
         public void Test4()
         {
             var @exception = Assert.Throws<Exception>(() => TestHelper.GetParseResultExpression("(2+2))*2",false));
-            Assert.Equal(exception.Message, "Amount of opening brackets have to equals amount of closing brackets");
+            Assert.Equal(exception.Message, "Expression is incorrect");
         }
 
         [Fact]

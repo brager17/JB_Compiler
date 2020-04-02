@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -18,8 +19,13 @@ namespace Parser
         Word,
         Comma,
         Constant,
+
         IntWord,
+        UIntWord,
         LongWord,
+        ULongWord,
+
+
         Semicolon,
         Assignment,
         Return
@@ -68,7 +74,9 @@ namespace Parser
         private readonly Dictionary<string, TokenType> KeyWords = new Dictionary<string, TokenType>
         {
             {"int", TokenType.IntWord},
+            {"uint", TokenType.UIntWord},
             {"long", TokenType.LongWord},
+            {"ulong", TokenType.ULongWord},
             {"return", TokenType.Return}
         };
 

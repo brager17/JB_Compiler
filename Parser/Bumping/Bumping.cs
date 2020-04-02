@@ -13,7 +13,7 @@ namespace Parser.Bumping
     {
         public static TestCasesGenerator testCasesGenerator = new TestCasesGenerator();
 
-        public static void ExecutionIsIdentical()
+        public static void ExpressionsExecutionIsIdentical()
         {
             string expression = null;
             long x = default;
@@ -80,6 +80,56 @@ namespace Parser.Bumping
             }
         }
 
+        public static void StatementsExecutionIdentical()
+        {
+            using var exceptionStream = new StreamWriter("exceptions.txt");
+
+            while (true)
+            {
+                var (statements, ret) = new TestCasesGenerator().GenerateRandomStatements(20);
+                var expr = string.Join(";", statements) + $";\nreturn {ret};";
+                try
+                {
+                    Func<long, long, long, long> roslyn = null;
+                    Func<long, long, long, long> func = null;
+                    try
+                    {
+                        TestHelper.GeneratedRoslyn(ret, out roslyn, statements);
+                    }
+                    catch (Exception ex)
+                    {
+                        Assert.Throws<Exception>(() => TestHelper.GeneratedStatementsMySelf(expr, out func));
+                        continue;
+                    }
+
+                    TestHelper.GeneratedStatementsMySelf(expr, out func);
+                    long my = default;
+                    try
+                    {
+                        my = func(1, 1, 1);
+                    }
+                    catch (OverflowException)
+                    {
+                        Assert.Throws<OverflowException>(() => roslyn(1, 1, 1));
+                        continue;
+                    }
+                    catch (DivideByZeroException)
+                    {
+                        Assert.Throws<DivideByZeroException>(() => roslyn(1, 1, 1));
+                        continue;
+                    }
+
+                    Assert.Equal(roslyn(1, 1, 1), my);
+                }
+                catch (Exception ex)
+                {
+                    exceptionStream.WriteLine(ex.Message);
+                    exceptionStream.WriteLine(ex.StackTrace);
+                    exceptionStream.WriteLine(expr);
+                }
+            }
+        }
+
         private static string[] GeneratedMySelf(string expression, out Func<long, long, long, long> func,
             string[] closed = null)
         {
@@ -102,7 +152,7 @@ namespace Parser.Bumping
             string @class = "Runner",
             string @namespace = "RunnerNamespace", (string, long)[] fields = null)
         {
-            var assembly = testCasesGenerator.GetAssemblyStream(expression, @class, @namespace, fields);
+            var assembly = testCasesGenerator.GetAssemblyStream(expression);
 
             var methodDefinition = AssemblyDefinition.ReadAssembly(assembly).MainModule
                 .GetTypes()

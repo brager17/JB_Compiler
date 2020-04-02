@@ -1,37 +1,53 @@
+using System;
+
 namespace Parser
 {
     public class PrimaryExpression : IExpression
     {
         public static PrimaryExpression FoldedAfterMul0 = new PrimaryExpression("0") {IsFoldedAfterMul0 = true};
 
-        public static CompilerType GetPrimaryType(string number)
+        public static bool GetPrimaryType(string number, out CompilerType compilerType)
         {
-            var l = long.Parse(number);
-            return GetPrimaryType(l);
-        }
+            compilerType = default;
 
-        public static CompilerType GetPrimaryType(long number)
-        {
-            return number >= int.MinValue && number <= int.MaxValue ? CompilerType.Int : CompilerType.Long;
+            if (int.TryParse(number, out _))
+            {
+                compilerType = CompilerType.Int;
+                return true;
+            }
+
+            if (uint.TryParse(number, out _))
+            {
+                compilerType = CompilerType.UInt;
+                return true;
+            }
+
+            if (long.TryParse(number, out _))
+            {
+                compilerType = CompilerType.Long;
+                return true;
+            }
+
+            return false;
         }
 
         public PrimaryExpression(string value, CompilerType compilerType)
         {
             Value = value;
-            CompilerType = compilerType;
+            ReturnType = compilerType;
         }
 
         public PrimaryExpression(string value)
         {
             Value = value;
-            CompilerType = GetPrimaryType(value);
+            if (!GetPrimaryType(value, out var type)) throw new Exception("Integral constant is too large");
+            ReturnType = type;
         }
 
-        public long LongValue => long.Parse(Value);
 
         public readonly string Value;
-        public readonly CompilerType CompilerType;
         public ExpressionType ExpressionType { get; } = ExpressionType.Primary;
+        public CompilerType ReturnType { get; } 
 
         // (x*12*14)*0 = 0; needs for example : (1/0*x) - no divide by null compile time exception, (1/0) - divide by null compile time exception
         public bool IsFoldedAfterMul0;

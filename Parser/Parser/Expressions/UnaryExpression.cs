@@ -15,8 +15,10 @@ namespace Parser
         {
             Expression = expression;
             UnaryType = UnaryType.Negative;
+            ReturnType = expression.ReturnType;
         }
 
         public ExpressionType ExpressionType { get; } = ExpressionType.Unary;
+        public CompilerType ReturnType { get; }
     }
 }

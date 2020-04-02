@@ -19,16 +19,42 @@ namespace Parser
             File.WriteAllLines("testCases.txt", generated);
         }
 
-        public string[] GenerateRandomExpression(int count)
+        public (string[], string @return) GenerateRandomStatements(int count)
+        {
+            if (count > 25) count = 25;
+            var result = new string[count];
+
+            var type = new[] {"long", "int"};
+            var random = new Random();
+            var allowsOperators = new[] {'+', '-', '*'};
+
+            var names = Enumerable.Range(0, 'z' - 'a').Select(x => (char) ('a' + (char) x))
+                .ToArray();
+            var alreadyAddedNames = new List<char>() {'x', 'y', 'z'};
+            for (int i = 0; i < count; i++)
+            {
+                result[i] = type[random.Next(0, 1)] + " ";
+                var activeNames = names.Except(alreadyAddedNames).ToArray();
+                var name = activeNames[random.Next(0, activeNames.Length - 1)];
+                result[i] += name + " = ";
+                result[i] += GenerateRandomExpression(1, alreadyAddedNames.ToArray(), allowsOperators, false)[0];
+                alreadyAddedNames.Add(name);
+            }
+
+            return (result, GenerateRandomExpression(1, alreadyAddedNames.ToArray(), allowsOperators, false)[0]);
+        }
+
+        public string[] GenerateRandomExpression(int count, char[] variables = null, char[] operators = null,
+            bool check = true)
         {
             var result = new string[count];
 
             char[] brackets = new[] {'(', ')'};
-            var operators = new[]
+            operators ??= new[]
             {
                 '+', '-', '/', '*',
             };
-            var variables = new[]
+            variables ??= new[]
             {
                 'x',
                 'y',
@@ -122,19 +148,22 @@ namespace Parser
 
                 var expr = sb.ToString();
 
-                var syntaxTree = CSharpSyntaxTree.ParseText(Wrap(expr));
-                var compilation = CSharpCompilation.Create(
-                    "assemblyName",
-                    new[] {syntaxTree},
-                    new[] {MetadataReference.CreateFromFile(typeof(object).Assembly.Location)},
-                    new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
-                using var dllStream = new MemoryStream();
-                using var pdbStream = new MemoryStream();
-                var emitResult = compilation.Emit(dllStream, pdbStream);
-                if (emitResult.Success == false)
+                if (check)
                 {
-                    continue;
+                    var syntaxTree = CSharpSyntaxTree.ParseText(Wrap(expr));
+                    var compilation = CSharpCompilation.Create(
+                        "assemblyName",
+                        new[] {syntaxTree},
+                        new[] {MetadataReference.CreateFromFile(typeof(object).Assembly.Location)},
+                        new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+                    using var dllStream = new MemoryStream();
+                    using var pdbStream = new MemoryStream();
+                    var emitResult = compilation.Emit(dllStream, pdbStream);
+                    if (emitResult.Success == false)
+                    {
+                        continue;
+                    }
                 }
 
                 result[count - 1] = expr;
@@ -149,15 +178,11 @@ namespace Parser
             return CountSymbol(sb, '(') - CountSymbol(sb, ')');
         }
 
-        public long Test(long x, long y, long z)
-        {
-            return 22147482649 + 1000L;
-        }
 
         [Fact]
         public void ldcSupport()
         {
-            TestHelper.GeneratedExpressionMySelf("22147482649 - 10000", out var f);
+            var q = TestHelper.GeneratedExpressionMySelf("22147482649 - 10000", out var f);
             f(1, 1, 1);
         }
 
@@ -166,10 +191,9 @@ namespace Parser
             return 22147482649 + (99 + 1 + x);
         }
 
-        public MemoryStream GetAssemblyStream(string expr, string @class = "Runner",
-            string @namespace = "RunnerNamespace", (string, long)[] fields = null, string[] fullMethodsAsText = null,string[] statements=null)
+        public MemoryStream GetAssemblyStream(string expr, string[] statements = null)
         {
-            var syntaxTree = CSharpSyntaxTree.ParseText(Wrap(expr, @class, @namespace, fields, fullMethodsAsText,statements));
+            var syntaxTree = CSharpSyntaxTree.ParseText(Wrap(expr, statements));
             var compilation = CSharpCompilation.Create(
                 "assemblyName",
                 new[] {syntaxTree},
@@ -181,25 +205,39 @@ namespace Parser
             var result = compilation.Emit(dllStream);
             if (!result.Success)
             {
-                throw new Exception("Roslyn compile exception\n" + string.Join("\n", result.Diagnostics));
+                throw new Exception("Roslyn compile exception\n" +
+                                    string.Join("\n", result.Diagnostics) + "\n\n\n" +
+                                    syntaxTree);
             }
 
             dllStream.Position = 0;
             return dllStream;
         }
 
-        private string Wrap(string expr, string @class = "Runner",
-            string @namespace = "RunnerNamespace", (string, long)[] staticFields = null,
-            string[] fullMethodsAsText = null, string[] statements = null)
+        private string Wrap(string expr, string[] statements = null)
         {
             var sample = @"
 using System.Runtime.CompilerServices;
-namespace {namespace}
+namespace RunnerNamespace
 {
-     public class {class}
+     public class Runner
     {
-        {fields}
-        {methods}
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static long MethodWithoutParameters() => 1;
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static long MethodWith1Parameter(long x) => x;
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static long MethodWith2Parameters(long x, long y) => (x + y);
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static long MethodWith3Parameters(long x, long y, long z) => (x + y + z);
+        
+        public static long a = 1;
+        public static long b = 2;
+        public static long c = 3;
+
         [MethodImpl(MethodImplOptions.NoOptimization)]
         public static long Run(long x, long y, long z)
         {
@@ -209,40 +247,16 @@ namespace {namespace}
     }
 }";
 
-            if (staticFields != null)
-            {
-                sample = sample.Replace(
-                    "{fields}",
-                    string.Join(Environment.NewLine,
-                        staticFields.Select(x => $"public static long {x.Item1}={x.Item2};")));
-            }
-            else
-            {
-                sample = sample.Replace("{fields}", "");
-            }
-
-            if (fullMethodsAsText != null)
-            {
-                sample = sample.Replace("{methods}", string.Join(Environment.NewLine, fullMethodsAsText));
-            }
-            else
-            {
-                sample = sample.Replace("{methods}", "");
-            }
-
             if (statements != null)
             {
-                sample = sample.Replace("{statements}", string.Join(';', statements));
+                sample = sample.Replace("{statements}", string.Join(";\n", statements));
             }
             else
             {
                 sample = sample.Replace("{statements}", "");
             }
 
-            return sample
-                .Replace("{class}", @class)
-                .Replace("{namespace}", @namespace)
-                .Replace("{expr}", expr);
+            return sample.Replace("{expr}", expr);
         }
 
         private int CountSymbol(StringBuilder sb, char s)

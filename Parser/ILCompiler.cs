@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Security.Principal;
 using Parser;
 
 namespace Compiler
@@ -25,6 +26,10 @@ namespace Compiler
                     return false;
             }
         }
+
+        public static long AsLong(this PrimaryExpression primaryExpression) => long.Parse(primaryExpression.Value);
+        public static int AsInt(this PrimaryExpression primaryExpression) => int.Parse(primaryExpression.Value);
+        public static uint AsUInt(this PrimaryExpression primaryExpression) => uint.Parse(primaryExpression.Value);
     }
 
     public class ILCompiler
@@ -56,6 +61,22 @@ namespace Compiler
                 null);
             visitor.Start(statements);
             return (CompileResult) dynamicMethod.CreateDelegate(typeof(CompileResult), null);
+        }
+
+        public T Compile<T>(IStatement[] statements, string[] methodParameters) where T : Delegate
+        {
+            var dynamicMethod = new DynamicMethod(
+                "method",
+                typeof(T).GenericTypeArguments[^1],
+                typeof(T).GenericTypeArguments[..^1]);
+
+            var visitor = new CompileExpressionVisitor(
+                dynamicMethod,
+                methodParameters,
+                null,
+                null);
+            visitor.Start(statements);
+            return (T) dynamicMethod.CreateDelegate(typeof(T), null);
         }
 
         public CompileResult CompileExpression(IExpression expression)
@@ -97,8 +118,11 @@ namespace Compiler
         private Dictionary<string, CompilerType> _localVariables;
         private ILGenerator _ilGenerator;
 
-        public Logger logger = new Logger();
         // for tests
+        public Logger logger = new Logger();
+        private const string TestedNamespace = "RunnerNamespace";
+        private const string TestedTypeFullName = "RunnerNamespace.Runner";
+        private const string TestedClass = "Runner";
 
         public CompileExpressionVisitor(
             DynamicMethod dynamicMethod,
@@ -120,7 +144,7 @@ namespace Compiler
                 // todo optimize:
                 .GroupBy(x => x.Left.Name)
                 .Select(x => x.First().Left)
-                .ToDictionary(x => x.Name, x => x.CompilerType);
+                .ToDictionary(x => x.Name, x => x.ReturnType);
 
             foreach (var localVariable in _localVariables)
             {
@@ -128,6 +152,7 @@ namespace Compiler
                 {
                     CompilerType.Long => typeof(long),
                     CompilerType.Int => typeof(int),
+                    CompilerType.UInt => typeof(uint),
                     _ => throw new ArgumentOutOfRangeException()
                 };
 
@@ -147,10 +172,23 @@ namespace Compiler
             _ilGenerator.Emit(OpCodes.Ret);
         }
 
-        public void Visit(BinaryExpression binaryExpression)
+        public long Test1(long x, long y, long z)
         {
-            Visit((dynamic) binaryExpression.Left);
-            Visit((dynamic) binaryExpression.Right);
+            uint t = 12;
+            int i = 1;
+            var t1 = i + t;
+            return 1L;
+        }
+
+        public BinaryExpression Visit(BinaryExpression binaryExpression)
+        {
+            var left = Visit((dynamic) binaryExpression.Left);
+            if (binaryExpression.Left.ReturnType < binaryExpression.Right.ReturnType)
+            {
+                if (binaryExpression.Left.ReturnType == CompilerType.Int)
+            }
+
+            var right = Visit((dynamic) binaryExpression.Right);
             switch (binaryExpression.TokenType)
             {
                 case TokenType.Plus:
@@ -170,97 +208,125 @@ namespace Compiler
                     _ilGenerator.Emit(OpCodes.Div);
                     break;
             }
+
+            return binaryExpression;
         }
 
-        public void Visit(ReturnStatement returnStatement)
+        public ReturnStatement Visit(ReturnStatement returnStatement)
         {
             Visit((dynamic) returnStatement.Returned);
             logger.Log("ret");
             _ilGenerator.Emit(OpCodes.Ret);
+            return returnStatement;
         }
 
-        public void Visit(AssignmentStatement assignmentStatement)
+        public AssignmentStatement Visit(AssignmentStatement assignmentStatement)
         {
             Visit((dynamic) assignmentStatement.Right);
             var count = Array.IndexOf(_localVariables.Select(x => x.Key).ToArray(), assignmentStatement.Left.Name);
+            logger.Log($"stloc {count}");
             _ilGenerator.Emit(OpCodes.Stloc, count);
+            return assignmentStatement;
         }
 
-        public void Visit(UnaryExpression unaryExpression)
+        public UnaryExpression Visit(UnaryExpression unaryExpression)
         {
-            Visit((dynamic) unaryExpression.Expression);
+            var expression = Visit((dynamic) unaryExpression.Expression);
             logger.Log("neg");
             _ilGenerator.Emit(OpCodes.Neg);
+            return new UnaryExpression(expression);
         }
 
-        public void Visit(PrimaryExpression primaryExpression)
+        private void IntEmit(int value)
         {
-            if (primaryExpression.CompilerType == CompilerType.Long)
+            switch (value)
             {
-                logger.Log($"ldc.i8 {primaryExpression.Value}");
-                _ilGenerator.Emit(OpCodes.Ldc_I8, primaryExpression.LongValue);
-            }
-            else if (primaryExpression.CompilerType == CompilerType.Int)
-            {
-                switch (primaryExpression.LongValue)
-                {
-                    case 0:
-                        logger.Log("ldc.i4.0");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_0);
-                        break;
-                    case 1:
-                        logger.Log("ldc.i4.1");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_1);
-                        break;
-                    case 2:
-                        logger.Log("ldc.i4.2");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_2);
-                        break;
-                    case 3:
-                        logger.Log("ldc.i4.3");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_3);
-                        break;
-                    case 4:
-                        logger.Log("ldc.i4.4");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_4);
-                        break;
-                    case 5:
-                        logger.Log("ldc.i4.5");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_5);
-                        break;
-                    case 6:
-                        logger.Log("ldc.i4.6");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_6);
-                        break;
-                    case 7:
-                        logger.Log("ldc.i4.7");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_7);
-                        break;
-                    case 8:
-                        logger.Log("ldc.i4.8");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_8);
-                        break;
-                    default:
-                        if (primaryExpression.LongValue < 128)
-                        {
-                            logger.Log($"ldc.i4.s {primaryExpression.Value}");
-                            _ilGenerator.Emit(OpCodes.Ldc_I4_S, primaryExpression.LongValue);
-                        }
-                        else
-                        {
-                            logger.Log($"ldc.i4 {primaryExpression.Value}");
-                            _ilGenerator.Emit(OpCodes.Ldc_I4, primaryExpression.LongValue);
-                        }
+                case 0:
+                    logger.Log("ldc.i4.0");
+                    _ilGenerator.Emit(OpCodes.Ldc_I4_0);
+                    break;
+                case 1:
+                    logger.Log("ldc.i4.1");
+                    _ilGenerator.Emit(OpCodes.Ldc_I4_1);
+                    break;
+                case 2:
+                    logger.Log("ldc.i4.2");
+                    _ilGenerator.Emit(OpCodes.Ldc_I4_2);
+                    break;
+                case 3:
+                    logger.Log("ldc.i4.3");
+                    _ilGenerator.Emit(OpCodes.Ldc_I4_3);
+                    break;
+                case 4:
+                    logger.Log("ldc.i4.4");
+                    _ilGenerator.Emit(OpCodes.Ldc_I4_4);
+                    break;
+                case 5:
+                    logger.Log("ldc.i4.5");
+                    _ilGenerator.Emit(OpCodes.Ldc_I4_5);
+                    break;
+                case 6:
+                    logger.Log("ldc.i4.6");
+                    _ilGenerator.Emit(OpCodes.Ldc_I4_6);
+                    break;
+                case 7:
+                    logger.Log("ldc.i4.7");
+                    _ilGenerator.Emit(OpCodes.Ldc_I4_7);
+                    break;
+                case 8:
+                    logger.Log("ldc.i4.8");
+                    _ilGenerator.Emit(OpCodes.Ldc_I4_8);
+                    break;
+                default:
+                    if (value >= -128 && value <= 128)
+                    {
+                        logger.Log($"ldc.i4.s {value}");
+                        _ilGenerator.Emit(OpCodes.Ldc_I4_S, (sbyte) value);
+                    }
+                    else
+                    {
+                        logger.Log($"ldc.i4 {value}");
+                        _ilGenerator.Emit(OpCodes.Ldc_I4, value);
+                    }
 
-                        break;
+                    break;
+            }
+        }
+
+        public PrimaryExpression Visit(PrimaryExpression primaryExpression)
+        {
+            if (primaryExpression.ReturnType == CompilerType.Long)
+            {
+                logger.Log($"ldc.i8 {primaryExpression.AsLong()}");
+                _ilGenerator.Emit(OpCodes.Ldc_I8, primaryExpression.AsLong());
+            }
+            else if (primaryExpression.ReturnType == CompilerType.Int)
+            {
+                IntEmit(primaryExpression.AsInt());
+                // logger.Log("conv.i8");
+                // _ilGenerator.Emit(OpCodes.Conv_I8);
+            }
+            else if (primaryExpression.ReturnType == CompilerType.UInt)
+            {
+                var q = primaryExpression.AsUInt();
+                if (q == uint.MaxValue)
+                {
+                    logger.Log("ldc.I4.m1");
+                    _ilGenerator.Emit(OpCodes.Ldc_I4_M1);
+                }
+                else
+                {
+                    IntEmit(int.MinValue + (int) (q - int.MaxValue - 1));
                 }
 
-                logger.Log("conv.i8");
-                _ilGenerator.Emit(OpCodes.Conv_I8);
+                // logger.Log("conv.u8");
+                // _ilGenerator.Emit(OpCodes.Conv_U8);
             }
+
+            return primaryExpression;
         }
 
-        public void Visit(MethodCallExpression methodCallExpression)
+        public MethodCallExpression Visit(MethodCallExpression methodCallExpression)
         {
             foreach (var parameter in methodCallExpression.Parameters)
             {
@@ -269,11 +335,12 @@ namespace Compiler
 
             var method = _closedMethods[methodCallExpression.Name];
             var logParams = string.Join(",", method.GetParameters().Select(x => x.ParameterType.ToString()));
-            logger.Log($"call {method.ReturnType} {method.DeclaringType.FullName}::{method.Name}({logParams})");
+            logger.Log($"call {method.ReturnType} {TestedTypeFullName}::{method.Name}({logParams})");
             _ilGenerator.Emit(OpCodes.Call, _closedMethods[methodCallExpression.Name]);
+            return methodCallExpression;
         }
 
-        public void Visit(VariableExpression variable)
+        public VariableExpression Visit(VariableExpression variable)
         {
             var index = Array.IndexOf(_parameters, variable.Name);
             if (index != -1)
@@ -332,9 +399,11 @@ namespace Compiler
             }
             else if (_closureFields.TryGetValue(variable.Name, out var field))
             {
-                logger.Log($"ldsfld {field.FieldType} {field.DeclaringType}::{field.Name}");
+                logger.Log($"ldsfld {field.FieldType} {TestedTypeFullName}::{field.Name}");
                 _ilGenerator.Emit(OpCodes.Ldsfld, field);
             }
+
+            return variable;
         }
     }
 }

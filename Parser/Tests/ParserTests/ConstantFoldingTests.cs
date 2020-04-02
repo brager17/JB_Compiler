@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using Compiler;
 using Xunit;
 
 namespace Parser
@@ -15,7 +16,7 @@ namespace Parser
             var parseResult = TestHelper.GetParseResultExpression(expr);
 
             Assert.Equal(ExpressionType.Primary, parseResult.ExpressionType);
-            Assert.Equal(6, ((PrimaryExpression) parseResult).LongValue);
+            Assert.Equal(6, ((PrimaryExpression) parseResult).AsLong());
         }
 
         [Fact]
@@ -29,7 +30,7 @@ namespace Parser
             // var result = visitor.Visit(parseResult);
 
             Assert.Equal(ExpressionType.Primary, parseResult.ExpressionType);
-            Assert.Equal(2, ((PrimaryExpression) parseResult).LongValue);
+            Assert.Equal(2, ((PrimaryExpression) parseResult).AsLong());
         }
 
 
@@ -41,7 +42,7 @@ namespace Parser
             var parseResult = TestHelper.GetParseResultExpression(expr);
 
             Assert.Equal(ExpressionType.Unary, parseResult.ExpressionType);
-            Assert.Equal(-3, -((PrimaryExpression) ((UnaryExpression) parseResult).Expression).LongValue);
+            Assert.Equal(-3, -((PrimaryExpression) ((UnaryExpression) parseResult).Expression).AsLong());
         }
 
 
@@ -53,7 +54,7 @@ namespace Parser
             var parseResult = TestHelper.GetParseResultExpression(expr);
 
             Assert.Equal(ExpressionType.Primary, parseResult.ExpressionType);
-            Assert.Equal(0, ((PrimaryExpression) parseResult).LongValue);
+            Assert.Equal(0, ((PrimaryExpression) parseResult).AsLong());
         }
 
         [Fact]
@@ -64,7 +65,7 @@ namespace Parser
             var parseResult = TestHelper.GetParseResultExpression(expr);
 
             Assert.Equal(ExpressionType.Primary, parseResult.ExpressionType);
-            Assert.Equal(1, ((PrimaryExpression) parseResult).LongValue);
+            Assert.Equal(1, ((PrimaryExpression) parseResult).AsLong());
         }
 
 
@@ -76,7 +77,7 @@ namespace Parser
             var parseResult = TestHelper.GetParseResultExpression(expr);
 
             Assert.Equal(ExpressionType.Primary, parseResult.ExpressionType);
-            Assert.Equal(1, ((PrimaryExpression) parseResult).LongValue);
+            Assert.Equal(1, ((PrimaryExpression) parseResult).AsLong());
         }
 
 
