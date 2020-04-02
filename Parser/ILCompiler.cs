@@ -183,11 +183,6 @@ namespace Compiler
         public BinaryExpression Visit(BinaryExpression binaryExpression)
         {
             var left = Visit((dynamic) binaryExpression.Left);
-            if (binaryExpression.Left.ReturnType < binaryExpression.Right.ReturnType)
-            {
-                if (binaryExpression.Left.ReturnType == CompilerType.Int)
-            }
-
             var right = Visit((dynamic) binaryExpression.Right);
             switch (binaryExpression.TokenType)
             {
@@ -303,8 +298,8 @@ namespace Compiler
             else if (primaryExpression.ReturnType == CompilerType.Int)
             {
                 IntEmit(primaryExpression.AsInt());
-                // logger.Log("conv.i8");
-                // _ilGenerator.Emit(OpCodes.Conv_I8);
+                logger.Log("conv.i8");
+                _ilGenerator.Emit(OpCodes.Conv_I8);
             }
             else if (primaryExpression.ReturnType == CompilerType.UInt)
             {
@@ -319,8 +314,8 @@ namespace Compiler
                     IntEmit(int.MinValue + (int) (q - int.MaxValue - 1));
                 }
 
-                // logger.Log("conv.u8");
-                // _ilGenerator.Emit(OpCodes.Conv_U8);
+                logger.Log("conv.u8");
+                _ilGenerator.Emit(OpCodes.Conv_U8);
             }
 
             return primaryExpression;
