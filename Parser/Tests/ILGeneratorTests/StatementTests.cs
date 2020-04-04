@@ -24,7 +24,7 @@ namespace Parser.ILGeneratorTests
             var result = TestHelper.GetParseResultStatements(expr);
 
             TestHelper.GeneratedStatementsMySelf(expr, out var func);
-            TestHelper.GeneratedRoslyn("q+w",
+            TestHelper.GeneratedRoslynExpression("q+w",
                 out var roslynFunc,
                 statements: expr
                     .Split(';')
@@ -40,7 +40,7 @@ namespace Parser.ILGeneratorTests
             var result = TestHelper.GetParseResultStatements(expr);
 
             TestHelper.GeneratedStatementsMySelf(expr, out var func);
-            TestHelper.GeneratedRoslyn("q+w",
+            TestHelper.GeneratedRoslynExpression("q+w",
                 out var roslynFunc,
                 statements: expr
                     .Split(';')
@@ -55,7 +55,7 @@ namespace Parser.ILGeneratorTests
         public void Compile__LongAndIntStatements__Correct(string expr, string returnExpr)
         {
             TestHelper.GeneratedStatementsMySelf(expr, out var func);
-            TestHelper.GeneratedRoslyn(returnExpr,
+            TestHelper.GeneratedRoslynExpression(returnExpr,
                 out var roslynFunc,
                 statements: expr
                     .Split(';')
@@ -85,7 +85,7 @@ namespace Parser.ILGeneratorTests
         public void Compile__StatementWithStaticMethodsAndFields__Correct(string expr, string returnExpr)
         {
             TestHelper.GeneratedStatementsMySelf(expr, out var func);
-            TestHelper.GeneratedRoslyn(returnExpr,
+            TestHelper.GeneratedRoslynExpression(returnExpr,
                 out var roslynFunc,
                 statements: expr
                     .Split(';')
@@ -105,7 +105,7 @@ namespace Parser.ILGeneratorTests
         public void Test(string expr, string @return)
         {
             var t=TestHelper.GeneratedStatementsMySelf(expr, out var func);
-            var tt=TestHelper.GeneratedRoslyn(@return,
+            var tt=TestHelper.GeneratedRoslynExpression(@return,
                 out var roslynFunc,
                 statements: expr
                     .Split(';')

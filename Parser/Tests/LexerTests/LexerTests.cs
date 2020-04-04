@@ -202,6 +202,26 @@ namespace Parser
             Assert.Equal(TokenType.RightBrace, result[14].Type);
         }
 
+        [Fact]
+        public void ConditionTest()
+        {
+            var expr = " 12 > 13 || 13 < 12 && 12 > 13";
+            var tokens = GetLexerResult(expr);
+
+            Assert.Equal(TokenType.Num, tokens[0].Type);
+            Assert.Equal(TokenType.GreaterThan, tokens[1].Type);
+            Assert.Equal(TokenType.Num, tokens[2].Type);
+            Assert.Equal(TokenType.Or, tokens[3].Type);
+            Assert.Equal(TokenType.Num, tokens[4].Type);
+            Assert.Equal(TokenType.LessThan, tokens[5].Type);
+            Assert.Equal(TokenType.Num, tokens[6].Type);
+            Assert.Equal(TokenType.And, tokens[7].Type);
+            Assert.Equal(TokenType.Num, tokens[8].Type);
+            Assert.Equal(TokenType.GreaterThan, tokens[9].Type);
+            Assert.Equal(TokenType.Num, tokens[10].Type);
+        }
+
+      
         private IReadOnlyList<Token> GetLexerResult(string expr)
         {
             var lexer = new Lexer(expr);

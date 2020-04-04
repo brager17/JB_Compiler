@@ -61,7 +61,7 @@ namespace Parser
         {
             var actual = TestHelper.GeneratedExpressionMySelf(expression, out var myFunc);
 
-            var expected = TestHelper.GeneratedRoslyn(expression, out var monoFunc);
+            var expected = TestHelper.GeneratedRoslynExpression(expression, out var monoFunc);
 
             Assert.Equal(myFunc(1, 1, 1), myFunc(1, 1, 1));
         }
@@ -72,7 +72,7 @@ namespace Parser
         {
             var actual = TestHelper.GeneratedExpressionMySelf(expression, out var myFunc);
 
-            var expected = TestHelper.GeneratedRoslyn(expression, out var monoFunc);
+            var expected = TestHelper.GeneratedRoslynExpression(expression, out var monoFunc);
 
             Assert.Equal(myFunc(1, 1, 1), myFunc(1, 1, 1));
         }
@@ -83,7 +83,7 @@ namespace Parser
         {
             var actual = TestHelper.GeneratedExpressionMySelf(expression, out var myFunc);
 
-            var expected = TestHelper.GeneratedRoslyn(expression, out var monoFunc);
+            var expected = TestHelper.GeneratedRoslynExpression(expression, out var monoFunc);
 
             Assert.Equal(myFunc(1, 1, 1), myFunc(1, 1, 1));
         }
@@ -96,7 +96,7 @@ namespace Parser
         public void SumNumbersOfOtherTypes(string expr)
         {
             var actual = TestHelper.GeneratedExpressionMySelf(expr, out var myFunc);
-            var expected = TestHelper.GeneratedRoslyn(expr, out var expectedFunc);
+            var expected = TestHelper.GeneratedRoslynExpression(expr, out var expectedFunc);
             Assert.Equal(expectedFunc(1,1,1), myFunc(1, 1, 1));
         } 
 
@@ -117,7 +117,7 @@ namespace Parser
         {
             var actual = TestHelper.GeneratedExpressionMySelf(expression, out var myFunc);
 
-            var expected = TestHelper.GeneratedRoslyn(expression, out var monoFunc);
+            var expected = TestHelper.GeneratedRoslynExpression(expression, out var monoFunc);
 
             Assert.Equal(expected, actual);
         }
@@ -135,7 +135,7 @@ namespace Parser
         {
             var actual = TestHelper.GeneratedExpressionMySelf(expression, out var func);
 
-            var expected = TestHelper.GeneratedRoslyn(expression, out var monoFunc);
+            var expected = TestHelper.GeneratedRoslynExpression(expression, out var monoFunc);
 
         }
 
@@ -154,7 +154,7 @@ namespace Parser
         {
             var actual = TestHelper.GeneratedExpressionMySelf(expression, out var func);
 
-            var expected = TestHelper.GeneratedRoslyn(expression, out var monoFunc);
+            var expected = TestHelper.GeneratedRoslynExpression(expression, out var monoFunc);
 
             Assert.Equal(func(1, 2, 3), monoFunc(1, 2, 3));
         }
@@ -175,7 +175,7 @@ namespace Parser
             var actual = TestHelper.GeneratedExpressionMySelf(expression, out var func);
 
             var expected =
-                TestHelper.GeneratedRoslyn(expression, out var monoFunc);
+                TestHelper.GeneratedRoslynExpression(expression, out var monoFunc);
 
             Assert.Equal(func(1, 2, 3), monoFunc(1, 2, 3));
         }
@@ -204,7 +204,7 @@ namespace Parser
         {
             var actual = TestHelper.GeneratedExpressionMySelf(expr, out var func);
 
-            var expected = TestHelper.GeneratedRoslyn(expr, out var monoFunc);
+            var expected = TestHelper.GeneratedRoslynExpression(expr, out var monoFunc);
 
             Assert.Equal(func(1, 2, 3), monoFunc(1, 2, 3));
         }
@@ -261,12 +261,12 @@ namespace Parser
             catch (DivideByZeroException)
             {
                 // _testOutputHelper.WriteLine("MyResult DivideByZeroException in compile time");
-                Assert.Throws<DivideByZeroException>(() => TestHelper.GeneratedRoslyn(expression, out rosynFunc));
+                Assert.Throws<DivideByZeroException>(() => TestHelper.GeneratedRoslynExpression(expression, out rosynFunc));
                 // _testOutputHelper.WriteLine("Roslyn DivideByZeroException in compile time");
                 return;
             }
 
-            string[] roslyn = TestHelper.GeneratedRoslyn(expression, out rosynFunc);
+            string[] roslyn = TestHelper.GeneratedRoslynExpression(expression, out rosynFunc);
 
             (x, y, z) = Generate();
 

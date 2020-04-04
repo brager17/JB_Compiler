@@ -1,20 +1,24 @@
 using System;
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using Compiler;
 
 namespace Parser
 {
+    // todo разделить для Expression'ов и для Statement'ов
     public enum ExpressionType
     {
         Variable = 1,
         Primary,
         Binary,
         Unary,
-        MethodCall,
+        MethodCallExpression,
+        VoidMethodCallStatement,
         Assignment,
         Logical,
         Return,
-        IfElse
+        IfElse,
+        Statement
     }
 
     public interface IExpression
@@ -34,20 +38,19 @@ namespace Parser
 
     public class Parser
     {
-        private readonly IReadOnlyList<Token> _tokens;
         private readonly Dictionary<string, CompilerType> _closedFields;
         private readonly bool _constantFolding;
         private Dictionary<string, CompilerType> _parameters;
         private Dictionary<string, CompilerType> _localVariables = new Dictionary<string, CompilerType>();
         private TokenSequence _tokenSequence;
+
         public Parser(
             IReadOnlyList<Token> tokens,
             Dictionary<string, CompilerType> parameters = null,
             Dictionary<string, CompilerType> closedFields = null,
             bool constantFolding = true)
         {
-            _tokens = tokens;
-            _tokenSequence = new TokenSequence(_tokens);
+            _tokenSequence = new TokenSequence(tokens);
             _parameters = parameters ?? new Dictionary<string, CompilerType>();
             _closedFields = closedFields ?? new Dictionary<string, CompilerType>();
             _constantFolding = constantFolding;
@@ -56,7 +59,7 @@ namespace Parser
         public IStatement[] Parse()
         {
             var list = new List<IStatement>();
-            while (Index < _tokens.Count)
+            while (!_tokenSequence.IsEmpty)
             {
                 list.Add(Statement());
             }
@@ -68,13 +71,14 @@ namespace Parser
         {
             var expression = Expression();
             // todo можно улучшить, потому что не конкретизируем ошибку
-            if (Index <= _tokens.Count - 1)
+            if (!_tokenSequence.IsEmpty)
             {
                 throw new Exception("Expression is incorrect");
             }
 
             return expression;
         }
+
 
         public bool CheckCannotImplicitConversion(VariableExpression left, IExpression right)
         {
@@ -94,13 +98,13 @@ namespace Parser
             return false;
         }
 
-        public IStatement Statement()
+        private IStatement AssignmentStatement()
         {
-            if ((Current?.Type == TokenType.IntWord || Current?.Type == TokenType.LongWord) &&
-                _tokens[Index + 2].Type == TokenType.Assignment)
+            VariableExpression variableExpression = null;
+            if (_tokenSequence.Current?.Type == TokenType.IntWord || _tokenSequence.Current?.Type == TokenType.LongWord)
             {
-                var keywordType = Current.Type;
-                Index++;
+                var keywordType = _tokenSequence.Current.Type;
+                _tokenSequence.Step();
 
                 var type = keywordType switch
                 {
@@ -108,132 +112,231 @@ namespace Parser
                     TokenType.LongWord => CompilerType.Long,
                 };
 
-                if (_parameters.ContainsKey(Current.Value))
+                if (_localVariables.TryGetValue(_tokenSequence.Current.Value, out _))
+                {
+                    throw new Exception($"Variable with name '{_tokenSequence.Current.Value}' is already declared");
+                }
+
+                if (_parameters.ContainsKey(_tokenSequence.Current.Value))
                 {
                     throw new Exception(
-                        $"A local or parameter named '{Current.Value}' cannot be declared in this scope because that name is used in an enclosing local scope to define a local or parameter");
+                        $"A local or parameter named '{_tokenSequence.Current.Value}' cannot be declared in this scope because that name is used in an enclosing local scope to define a local or parameter");
                 }
 
-                var variable = new VariableExpression(Current.Value, type);
-                _localVariables.Add(variable.Name, variable.ReturnType);
-                Index += 2; // variable name + assignment sign
-                var expression = Expression();
-
-                if (CheckCannotImplicitConversion(variable, expression))
+                variableExpression = new VariableExpression(_tokenSequence.Current.Value, type);
+                _localVariables.Add(variableExpression.Name, variableExpression.ReturnType);
+                _tokenSequence.Step(); // variable name
+            }
+            else if (_tokenSequence.Current?.Type == TokenType.Variable)
+            {
+                if (_localVariables.TryGetValue(_tokenSequence.Current.Value, out var compilerType))
                 {
-                    throw new Exception("Cannot implicitly convert type 'long ' to int");
+                    variableExpression = new VariableExpression(_tokenSequence.Current.Value, compilerType);
+                    _tokenSequence.Step(); // assignment sign
                 }
-
-                if (Current?.Type != TokenType.Semicolon)
+                else
                 {
-                    throw new Exception("Statement must be ended by semicolon");
+                    throw new Exception($"Variable with name '{_tokenSequence.Current.Value}' is not declared");
                 }
-
-                Index++;
-
-                return new AssignmentStatement(variable, expression);
             }
 
-            if (Current?.Type == TokenType.ReturnWord)
+            _tokenSequence.Step(); // assignment sign
+            var expression = Expression();
+
+            if (CheckCannotImplicitConversion(variableExpression, expression))
             {
-                Index++;
+                throw new Exception("Cannot implicitly convert type 'long ' to int");
+            }
+
+            if (_tokenSequence.Current?.Type != TokenType.Semicolon)
+            {
+                throw new Exception("Statement must be ended by semicolon");
+            }
+
+            _tokenSequence.Step();
+
+            return new AssignmentStatement(variableExpression, expression);
+        }
+
+        public IStatement Statement()
+        {
+            if (_tokenSequence.Get(2) == Token.Assignment || _tokenSequence.Get(1) == Token.Assignment)
+            {
+                return AssignmentStatement();
+            }
+
+            if (_tokenSequence.Current?.Type == TokenType.ReturnWord)
+            {
+                _tokenSequence.Step();
                 var expression = Expression();
-                if (Current?.Type != TokenType.Semicolon)
+                if (_tokenSequence.Current?.Type != TokenType.Semicolon)
                 {
                     throw new Exception("Return must be ended by semicolon");
                 }
 
-                Index++;
+                _tokenSequence.Step();
                 return new ReturnStatement(expression);
             }
 
-            if (Current?.Type == TokenType.IfWord)
+            if (_tokenSequence.Current?.Type == TokenType.IfWord)
             {
-                Index++;
-                if (Current.Type != TokenType.LeftParent)
+                return IfElseStatement();
+            }
+
+            // todo: использовать другую проверку, что это метод
+            if (_tokenSequence.Current?.Type == TokenType.Word && _tokenSequence.Next.Type == TokenType.LeftParent)
+            {
+                var methodCall = MethodCallExpression();
+                if (_tokenSequence.Current.Type != TokenType.Semicolon)
                 {
-                    throw new Exception("Missing Left Parent");
+                    throw new Exception("Missing semicolon");
                 }
 
-                Index++;
-                var expression = Logical();
-
-                if (Current.Type != TokenType.RightParent)
-                {
-                    throw new Exception("Missing Right Parent");
-                }
-
-                Index++;
-                if (Current.Type != TokenType.LeftBrace)
-                {
-                    throw new Exception("Missing left brace");
-                }
-
-                Index++;
-                var ifStatement = Statement();
-
-                if (Current.Type != TokenType.RightBrace)
-                {
-                    throw new Exception("Missing right brace");
-                }
-
-                if (Index == _tokens.Count - 1 && _tokens[Index + 1]?.Type != TokenType.ElseWord)
-                {
-                    return new IfElseStatement((LogicalBinaryExpression) expression, ifStatement);
-                }
-
-                Index++;
-                if (Current.Type != TokenType.LeftBrace)
-                {
-                    throw new Exception("Missing left brace");
-                }
-
-                Index++;
-                var elseStatement = Statement();
-
-                if (Current.Type != TokenType.RightBrace)
-                {
-                    throw new Exception("Missing right brace");
-                }
-
-                return new IfElseStatement((LogicalBinaryExpression) expression, ifStatement, elseStatement);
+                _tokenSequence.Step();
+                return new VoidMethodCallStatement(methodCall);
             }
 
             throw new Exception("дописать остальные виды statements");
         }
 
-        public IExpression Logical()
+        public IfElseStatement IfElseStatement()
         {
-            var left = Expression();
-            switch (Current.Type)
+            _tokenSequence.Step();
+            if (_tokenSequence.Current.Type != TokenType.LeftParent)
             {
-                case TokenType.LessThan:
-                    Index++;
-                    return new LogicalBinaryExpression(left, Expression(), LogicalOperator.Less);
-                case TokenType.LessThanOrEquals:
-                    Index++;
-                    return new LogicalBinaryExpression(left, Expression(), LogicalOperator.LessOrEq);
-                case TokenType.GreaterThan:
-                    Index++;
-                    return new LogicalBinaryExpression(left, Expression(), LogicalOperator.Greater);
-                case TokenType.GreaterThanOrEquals:
-                    Index++;
-                    return new LogicalBinaryExpression(left, Expression(), LogicalOperator.GreaterOrEq);
-                case TokenType.EqualTo:
-                    Index++;
-                    return new LogicalBinaryExpression(left, Expression(), LogicalOperator.Eq);
-                case TokenType.NotEqualTo:
-                    Index++;
-                    return new LogicalBinaryExpression(left, Expression(), LogicalOperator.NoEq);
-                default:
-                    return left;
+                throw new Exception("Missing Left Parent");
             }
+
+            _tokenSequence.Step();
+            var expression = Expression();
+
+            if (_tokenSequence.Current.Type != TokenType.RightParent)
+            {
+                throw new Exception("Missing Right Parent");
+            }
+
+            _tokenSequence.Step();
+            if (_tokenSequence.Current.Type != TokenType.LeftBrace)
+            {
+                throw new Exception("Missing left brace");
+            }
+
+            _tokenSequence.Step();
+
+
+            var ifStatements = new List<IStatement>();
+            while (_tokenSequence.Current.Type != TokenType.RightBrace)
+            {
+                ifStatements.Add(Statement());
+            }
+
+
+            if (_tokenSequence.Next?.Type != TokenType.ElseWord)
+            {
+                _tokenSequence.Step();
+                return new IfElseStatement((LogicalBinaryExpression) expression,
+                    new Statement(ifStatements.ToArray()));
+            }
+
+            _tokenSequence.Step();
+            _tokenSequence.Step();
+            if (_tokenSequence.Current.Type != TokenType.LeftBrace)
+            {
+                throw new Exception("Missing left brace");
+            }
+
+            _tokenSequence.Step();
+            var elseStatements = new List<IStatement>();
+            while (_tokenSequence.Current.Type != TokenType.RightBrace)
+            {
+                elseStatements.Add(Statement());
+            }
+
+            if (_tokenSequence.Current.Type != TokenType.RightBrace)
+            {
+                throw new Exception("Missing right brace");
+            }
+
+            _tokenSequence.Step();
+
+            return new IfElseStatement((LogicalBinaryExpression) expression,
+                new Statement(ifStatements.ToArray()),
+                new Statement(elseStatements.ToArray()));
         }
 
         public IExpression Expression()
         {
-            var expression = Additive();
+            var expression = OrLogical();
             return expression;
+        }
+
+
+        public IExpression OrLogical()
+        {
+            var result = AndLogical();
+            while (_tokenSequence.Current?.Type == TokenType.Or)
+            {
+                _tokenSequence.Step();
+                result = new LogicalBinaryExpression(result, AndLogical(), LogicalOperator.Or);
+            }
+
+            return result;
+        }
+
+        public IExpression AndLogical()
+        {
+            var result = EqualsNoEquals();
+            while (_tokenSequence.Current?.Type == TokenType.And)
+            {
+                _tokenSequence.Step();
+                result = new LogicalBinaryExpression(result, EqualsNoEquals(), LogicalOperator.And);
+            }
+
+            return result;
+        }
+
+        public IExpression EqualsNoEquals()
+        {
+            var result = Logical();
+            while (_tokenSequence.Current?.Type == TokenType.EqualTo ||
+                   _tokenSequence.Current?.Type == TokenType.NotEqualTo)
+            {
+                switch (_tokenSequence.Current?.Type)
+                {
+                    case TokenType.EqualTo:
+                        _tokenSequence.Step();
+                        result = new LogicalBinaryExpression(result, Logical(), LogicalOperator.Eq);
+                        break;
+                    case TokenType.NotEqualTo:
+                        _tokenSequence.Step();
+                        result = new LogicalBinaryExpression(result, Logical(), LogicalOperator.NoEq);
+                        break;
+                }
+            }
+
+            return result;
+        }
+
+        public IExpression Logical()
+        {
+            var left = Additive();
+            switch (_tokenSequence.Current?.Type)
+            {
+                case TokenType.LessThan:
+                    _tokenSequence.Step();
+                    return new LogicalBinaryExpression(left, Additive(), LogicalOperator.Less);
+                case TokenType.LessThanOrEquals:
+                    _tokenSequence.Step();
+                    return new LogicalBinaryExpression(left, Additive(), LogicalOperator.LessOrEq);
+                case TokenType.GreaterThan:
+                    _tokenSequence.Step();
+                    return new LogicalBinaryExpression(left, Additive(), LogicalOperator.Greater);
+                case TokenType.GreaterThanOrEquals:
+                    _tokenSequence.Step();
+                    return new LogicalBinaryExpression(left, Additive(), LogicalOperator.GreaterOrEq);
+                default:
+                    return left;
+            }
         }
 
 
@@ -243,9 +346,9 @@ namespace Parser
             // x + y + (x*y+x) = (x+y)+(x*y+x), not x+(y+(x*y+x)), it is important, because c# works this way
             while (true)
             {
-                if (Current?.Type == TokenType.Plus)
+                if (_tokenSequence.Current?.Type == TokenType.Plus)
                 {
-                    Index++;
+                    _tokenSequence.Step();
                     var right = Multiplicative();
                     if (TryFold(result, out var leftValue, out var leftType) &&
                         TryFold(right, out var rightValue, out var rightType))
@@ -260,9 +363,9 @@ namespace Parser
                     continue;
                 }
 
-                if (Current?.Type == TokenType.Minus)
+                if (_tokenSequence.Current?.Type == TokenType.Minus)
                 {
-                    Index++;
+                    _tokenSequence.Step();
                     var right = Multiplicative();
                     if (TryFold(result, out var leftValue, out var leftType) &&
                         TryFold(right, out var rightValue, out var rightType))
@@ -381,9 +484,9 @@ namespace Parser
             // x*y*z = ((x*y)*z) not (x*(y*z)) , it is important, because c# works this way
             while (true)
             {
-                if (Current?.Type == TokenType.Star)
+                if (_tokenSequence.Current?.Type == TokenType.Star)
                 {
-                    Index++;
+                    _tokenSequence.Step();
                     var right = Unary();
                     if (TryFold(result, out var leftValue, out var leftType) &&
                         TryFold(right, out var rightValue, out var rightType))
@@ -420,9 +523,9 @@ namespace Parser
                     continue;
                 }
 
-                if (Current?.Type == TokenType.Slash)
+                if (_tokenSequence.Current?.Type == TokenType.Slash)
                 {
-                    Index++;
+                    _tokenSequence.Step();
                     var right = Unary();
                     if (TryFold(result, out var leftValue, out var leftType) &&
                         TryFold(right, out var rightValue, out var rightType))
@@ -457,14 +560,14 @@ namespace Parser
 
         public IExpression Unary()
         {
-            if (Current.Type == TokenType.Minus)
+            if (_tokenSequence.Current.Type == TokenType.Minus)
             {
-                if (_tokens[Index + 1].Type == TokenType.Num)
+                if (_tokenSequence.Get(1).Type == TokenType.Num)
                 {
                     return new UnaryExpression(ParseNumber());
                 }
 
-                Index++;
+                _tokenSequence.Step();
 
                 var expression = Primary();
                 if (_constantFolding && expression.TryCast<UnaryExpression>(out var unary) &&
@@ -482,22 +585,22 @@ namespace Parser
 
         private IExpression ParseNumber()
         {
-            if (Current.Type == TokenType.Minus)
+            if (_tokenSequence.Current.Type == TokenType.Minus)
             {
-                Index++;
-                var stringNumber = Current.Value;
-                if (PrimaryExpression.GetPrimaryType('-' + Current.Value, out var compilerType))
+                _tokenSequence.Step();
+                var stringNumber = _tokenSequence.Current.Value;
+                if (PrimaryExpression.GetPrimaryType('-' + _tokenSequence.Current.Value, out var compilerType))
                 {
-                    Index++;
+                    _tokenSequence.Step();
                     return new PrimaryExpression(stringNumber, compilerType);
                 }
             }
             else
             {
-                var stringNumber = Current.Value;
-                if (PrimaryExpression.GetPrimaryType(Current.Value, out var compilerType))
+                var stringNumber = _tokenSequence.Current.Value;
+                if (PrimaryExpression.GetPrimaryType(_tokenSequence.Current.Value, out var compilerType))
                 {
-                    Index++;
+                    _tokenSequence.Step();
                     return new PrimaryExpression(stringNumber, compilerType);
                 }
             }
@@ -507,89 +610,73 @@ namespace Parser
 
         public IExpression Primary()
         {
-            if (Current.Type == TokenType.Num)
+            if (_tokenSequence.Current.Type == TokenType.Num)
             {
                 return ParseNumber();
             }
 
-            if (Current.Type == TokenType.Num)
+            if (_tokenSequence.Current.Type == TokenType.Num)
             {
-                var stringNumber = Current.Value;
-                if (PrimaryExpression.GetPrimaryType(Current.Value, out var compilerType))
+                var stringNumber = _tokenSequence.Current.Value;
+                if (PrimaryExpression.GetPrimaryType(_tokenSequence.Current.Value, out var compilerType))
                 {
-                    Index++;
+                    _tokenSequence.Step();
                     return new PrimaryExpression(stringNumber, compilerType);
                 }
 
                 throw new Exception("Integral constant is too large");
             }
 
-            if (Current?.Type == TokenType.Variable)
+            if (_tokenSequence.Current?.Type == TokenType.Variable)
             {
-                var varToken = Current;
-                Index++;
+                var varToken = _tokenSequence.Current;
+                _tokenSequence.Step();
 
-                if (_parameters.TryGetValue(varToken.Value, out var variableType) ||
-                    _closedFields.TryGetValue(varToken.Value, out variableType) ||
-                    _localVariables.TryGetValue(varToken.Value, out variableType))
-                    return new VariableExpression(varToken.Value, variableType);
+                var variableType = GetVariableType(varToken);
+                return new VariableExpression(varToken.Value, variableType);
             }
 
-            if (Current?.Type == TokenType.LeftParent)
+            if (_tokenSequence.Current?.Type == TokenType.RefWord)
             {
-                Index++;
+                if (_tokenSequence.Next.Type != TokenType.Variable)
+                {
+                    throw new Exception("ref keyword must using only with variables or method args");
+                }
+
+                _tokenSequence.Step();
+                var varToken = _tokenSequence.CurrentWithStep();
+                var variableType = GetVariableType(varToken);
+                return new VariableExpression(varToken.Value, variableType, true);
+            }
+
+            if (_tokenSequence.Current?.Type == TokenType.LeftParent)
+            {
+                _tokenSequence.Step();
                 var expression = Expression();
-                if (Current?.Type != TokenType.RightParent)
+                if (_tokenSequence.Current?.Type != TokenType.RightParent)
                 {
                     throw new Exception("Count of opening brackets must be equals count of closing brackets");
                 }
 
-                Index++;
+                _tokenSequence.Step();
                 return expression;
             }
 
-            if (Current?.Type == TokenType.RightParent)
+            if (_tokenSequence.Current?.Type == TokenType.RightParent)
             {
                 throw new Exception("Amount of opening brackets have to equals amount of closing brackets");
             }
 
-            if (Current?.Type == TokenType.Word)
+            if (_tokenSequence.Current?.Type == TokenType.Word)
             {
-                var methodName = Current.Value;
-                Index++;
-                if (Current.Type != TokenType.LeftParent)
-                {
-                    throw new Exception("Opening bracket must be after method name");
-                }
-
-                Index++;
-                var @params = new List<IExpression>();
-                while (Current?.Type != TokenType.RightParent)
-                {
-                    @params.Add(Expression());
-
-                    if (Current.Type != TokenType.Comma && Current.Type != TokenType.RightParent)
-                    {
-                        throw new Exception("Method parameters must be separated by comma");
-                    }
-
-                    if (Current.Type == TokenType.Comma)
-                    {
-                        Index++;
-                    }
-                }
-
-
-                if (Current == null) throw new Exception("Method must end with the closing bracket");
-                Index++;
-                return new MethodCallExpression(methodName, @params);
+                return MethodCallExpression();
             }
 
-            if (Current?.Type == TokenType.Constant)
+            if (_tokenSequence.Current?.Type == TokenType.Constant)
             {
-                if (Constants.Dictionary.TryGetValue(Current.Value, out var item))
+                if (Constants.Dictionary.TryGetValue(_tokenSequence.Current.Value, out var item))
                 {
-                    Index++;
+                    _tokenSequence.Step();
                     if (item.Item1[0] != '-') return new PrimaryExpression(item.Item1, item.Item2);
                     return new UnaryExpression(new PrimaryExpression(item.Item1[1..], item.Item2));
                 }
@@ -600,9 +687,48 @@ namespace Parser
             throw new ArgumentException();
         }
 
+        private CompilerType GetVariableType(Token varToken)
+        {
+            if (_parameters.TryGetValue(varToken.Value, out var variableType) ||
+                _closedFields.TryGetValue(varToken.Value, out variableType) ||
+                _localVariables.TryGetValue(varToken.Value, out variableType))
+            {
+                return variableType;
+            }
 
-        private Token Current => Index < _tokens.Count ? _tokens[Index] : null;
-        private int Index = 0;
-        private Token Next => _tokens[Index + 1];
+            throw new Exception("can't find this variable");
+        }
+
+        private MethodCallExpression MethodCallExpression()
+        {
+            var methodName = _tokenSequence.Current.Value;
+            _tokenSequence.Step();
+            if (_tokenSequence.Current.Type != TokenType.LeftParent)
+            {
+                throw new Exception("Opening bracket must be after method name");
+            }
+
+            _tokenSequence.Step();
+            var @params = new List<IExpression>();
+            while (_tokenSequence.Current?.Type != TokenType.RightParent)
+            {
+                @params.Add(Expression());
+
+                if (_tokenSequence.Current.Type != TokenType.Comma &&
+                    _tokenSequence.Current.Type != TokenType.RightParent)
+                {
+                    throw new Exception("Method parameters must be separated by comma");
+                }
+
+                if (_tokenSequence.Current.Type == TokenType.Comma)
+                {
+                    _tokenSequence.Step();
+                }
+            }
+
+            if (_tokenSequence.Current == null) throw new Exception("Method must end with the closing bracket");
+            _tokenSequence.Step();
+            return new MethodCallExpression(methodName, @params);
+        }
     }
 }

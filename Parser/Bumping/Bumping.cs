@@ -6,6 +6,7 @@ using System.Reflection.Emit;
 using Compiler;
 using Mono.Cecil;
 using Xunit;
+using CompileExpressionVisitor = Parser.Tests.CompileExpressionVisitor;
 
 namespace Parser.Bumping
 {
@@ -94,7 +95,7 @@ namespace Parser.Bumping
                     Func<long, long, long, long> func = null;
                     try
                     {
-                        TestHelper.GeneratedRoslyn(ret, out roslyn, statements);
+                        TestHelper.GeneratedRoslynExpression(ret, out roslyn, statements);
                     }
                     catch (Exception ex)
                     {

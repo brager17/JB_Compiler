@@ -191,9 +191,9 @@ namespace Parser
             return 22147482649 + (99 + 1 + x);
         }
 
-        public MemoryStream GetAssemblyStream(string expr, string[] statements = null)
+        public MemoryStream GetAssemblyStream(string expr = null, string[] statements = null, string methodBody = null)
         {
-            var syntaxTree = CSharpSyntaxTree.ParseText(Wrap(expr, statements));
+            var syntaxTree = CSharpSyntaxTree.ParseText(Wrap(expr, statements, methodBody));
             var compilation = CSharpCompilation.Create(
                 "assemblyName",
                 new[] {syntaxTree},
@@ -214,7 +214,7 @@ namespace Parser
             return dllStream;
         }
 
-        private string Wrap(string expr, string[] statements = null)
+        private string Wrap(string expr, string[] statements = null, string methodBody = null)
         {
             var sample = @"
 using System.Runtime.CompilerServices;
@@ -246,6 +246,12 @@ namespace RunnerNamespace
         }
     }
 }";
+            if (methodBody != null)
+            {
+                var replace = sample.Replace("{statements};", "");
+                var wrap = replace.Replace("return {expr};", methodBody);
+                return wrap;
+            }
 
             if (statements != null)
             {

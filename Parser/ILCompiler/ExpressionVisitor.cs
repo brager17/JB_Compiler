@@ -1,11 +1,11 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Emit;
 using Parser;
 
 namespace Compiler
 {
-    public class ExpressionVisitor
+    public abstract class ExpressionVisitor
     {
         public virtual IStatement VisitStatement(IStatement statement)
         {
@@ -16,9 +16,21 @@ namespace Compiler
                     break;
                 case ExpressionType.Return:
                     return VisitReturn((ReturnStatement) statement);
+                case ExpressionType.IfElse:
+                    return VisitIfElse((IfElseStatement) statement);
+                case ExpressionType.VoidMethodCallStatement:
+                    return VisitVoidMethod((VoidMethodCallStatement) statement);
+                case ExpressionType.Statement:
+                    return VisitVoidMethod((VoidMethodCallStatement) statement);
                 default:
                     throw new ArgumentOutOfRangeException();
             }
+        }
+
+        public virtual VoidMethodCallStatement VisitVoidMethod(VoidMethodCallStatement statement)
+        {
+            var method = VisitMethod(statement.Method);
+            return new VoidMethodCallStatement(method);
         }
 
         public virtual IExpression VisitExpression(IExpression expression)
@@ -33,12 +45,26 @@ namespace Compiler
                     return VisitBinary((BinaryExpression) expression);
                 case ExpressionType.Unary:
                     return VisitUnary((UnaryExpression) expression);
-                case ExpressionType.MethodCall:
+                case ExpressionType.MethodCallExpression:
                     return VisitMethod((MethodCallExpression) expression);
                 default:
                     throw new ArgumentOutOfRangeException();
             }
         }
+
+        public virtual Statement VisitStatement(Statement statement)
+        {
+            return new Statement(statement.Statements.Select(VisitStatement).ToArray());
+        }
+
+        // public virtual LogicalBinaryExpression VisitLogical(LogicalBinaryExpression expression, Label IfBodyStart)
+        // {
+        //     var left = VisitExpression(expression.Left);
+        //     var right = VisitExpression(expression.Left);
+        //     return new LogicalBinaryExpression(left, right, expression.Operator);
+        // }
+
+        public abstract IfElseStatement VisitIfElse(IfElseStatement statement);
 
 
         public virtual BinaryExpression VisitBinary(BinaryExpression binaryExpression)

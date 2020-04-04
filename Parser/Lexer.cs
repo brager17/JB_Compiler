@@ -20,11 +20,10 @@ namespace Parser
         Word,
         Comma,
         Constant,
-
         IntWord,
         LongWord,
 
-
+        RefWord,
         Semicolon,
         Assignment,
         ReturnWord,
@@ -37,6 +36,8 @@ namespace Parser
         GreaterThanOrEquals,
         EqualTo,
         NotEqualTo,
+        Or,
+        And
     }
 
 
@@ -63,6 +64,7 @@ namespace Parser
         public static Token GreaterThan = new Token(TokenType.GreaterThan);
         public static Token GreaterThanOrEquals = new Token(TokenType.GreaterThanOrEquals);
         public static Token IntWord = new Token("int", TokenType.IntWord);
+        public static Token RefWord = new Token("ref", TokenType.RefWord);
 
         public static Token LongWord = new Token("long", TokenType.LongWord);
 
@@ -71,6 +73,8 @@ namespace Parser
         public static Token IntMinValue = new Token("int.MinValue", TokenType.Constant);
         public static Token LongMaxValue = new Token("long.MaxValue", TokenType.Constant);
         public static Token LongMinValue = new Token("long.MinValue", TokenType.Constant);
+        public static Token And = new Token("&&", TokenType.And);
+        public static Token Or = new Token("||", TokenType.Or);
 
         public Token(string value)
         {
@@ -103,6 +107,8 @@ namespace Parser
             {"!=", Token.NotEqualTo},
             {">=", Token.GreaterThanOrEquals},
             {"<=", Token.LessThanOrEquals},
+            {"<", Token.LessThan},
+            {">", Token.GreaterThan},
             {"+", Token.Plus},
             {"-", Token.Minus},
             {"*", Token.Star},
@@ -123,6 +129,9 @@ namespace Parser
             {"int.MaxValue", Token.IntMaxValue},
             {"long.MinValue", Token.LongMinValue},
             {"long.MaxValue", Token.LongMaxValue},
+            {"||", Token.Or},
+            {"&&", Token.And},
+            {"ref", Token.RefWord},
         };
 
         string[] SeqKeyWords => keyWordsDictionary.Select(x => x.Key).ToArray();

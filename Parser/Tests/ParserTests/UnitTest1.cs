@@ -224,7 +224,7 @@ namespace Parser
             var z = 25132344;
 
             var t = TestHelper.GeneratedExpressionMySelf(expr, out var func);
-            var tt = TestHelper.GeneratedRoslyn(expr, out var roslynFunc);
+            var tt = TestHelper.GeneratedRoslynExpression(expr, out var roslynFunc);
 
             Assert.Equal(roslynFunc(x, y, z), func(x, y, z));
         }

@@ -2,15 +2,16 @@ namespace Parser
 {
     public enum LogicalOperator
     {
-        // priority 2
         Less,
+        Eq,
+        And,
         LessOrEq,
         Greater,
         GreaterOrEq,
 
-        //priority 1
-        Eq,
-        NoEq
+        NoEq,
+        
+        Or
     }
 
     public class LogicalBinaryExpression : IExpression
@@ -33,17 +34,17 @@ namespace Parser
     public class IfElseStatement : IStatement
     {
         public LogicalBinaryExpression Test;
-        public readonly IStatement IfTrue;
-        public readonly IStatement IfFalse;
+        public readonly Statement IfTrue;
+        public readonly Statement Else;
 
-        public IfElseStatement(LogicalBinaryExpression test, IStatement ifTrue, IStatement ifFalse)
+        public IfElseStatement(LogicalBinaryExpression test, Statement ifTrue, Statement @else)
         {
             Test = test;
             IfTrue = ifTrue;
-            IfFalse = ifFalse;
+            Else = @else;
         }
         
-        public IfElseStatement(LogicalBinaryExpression test, IStatement ifTrue)
+        public IfElseStatement(LogicalBinaryExpression test, Statement ifTrue)
         {
             Test = test;
             IfTrue = ifTrue;
