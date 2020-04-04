@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using Compiler;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Parser.Exceptions;
 using Xunit;
 
 namespace Parser
@@ -38,7 +39,9 @@ namespace Parser
         {
             string expr = @"
                     long q = 12*x;
-                    long w = -14+12;";
+                    long w = -14+12;
+                    return 2;
+                    ";
             var result = TestHelper.GetParseResultStatements(expr);
 
 
@@ -65,7 +68,9 @@ namespace Parser
         {
             string expr = @"
                     long q = 12*x;
-                    long w = -q;";
+                    long w = -q;
+                    return 1;
+                    ";
             var result = TestHelper.GetParseResultStatements(expr);
 
             Assert.Equal(ExpressionType.Assignment, result[0].ExpressionType);
@@ -89,7 +94,7 @@ namespace Parser
         public void Parse__LocalVariableCalledAsParameter__ThrowException()
         {
             var expr = "int a = 12;return a;";
-            var ex = Assert.Throws<Exception>(() => TestHelper.GeneratedStatementsMySelf(expr, out var func,
+            var ex = Assert.Throws<CompileException>(() => TestHelper.GeneratedStatementsMySelf(expr, out var func,
                 new Dictionary<string, CompilerType> {{"a", CompilerType.Int}}));
             Assert.Equal(
                 "A local or parameter named 'a' cannot be declared in this scope because that name is used in an enclosing local scope to define a local or parameter",
@@ -113,7 +118,9 @@ namespace Parser
             var expr = "return a;";
             var lexer = new Lexer(expr);
             var tokens = lexer.ReadAll();
-            var parser = new Parser(tokens, new Dictionary<string, CompilerType>() {{"a", CompilerType.Int}});
+            var context = new ParserContext(tokens, new Dictionary<string, CompilerType>() {{"a", CompilerType.Int}},
+                null, null);
+            var parser = new Parser(context);
             var result = new ILCompiler().Compile<Func<int, int>>(parser.Parse(), new[] {"a"});
             Assert.Equal(12, result(12));
         }
@@ -204,6 +211,10 @@ return k*9-p-j+x-4231309+c-p+u-c+z-t+u-h-a-208+h-37664745*p*91251472+z*s-x+x*h*u
         //
         public void IfStatementTests()
         {
+            var methods = new Dictionary<string, (CompilerType[], CompilerType)>()
+            {
+                {"Print", (new CompilerType[] { }, CompilerType.Void)}
+            };
             var expr =
                 $@"
             if (x == 1)
@@ -222,11 +233,29 @@ return k*9-p-j+x-4231309+c-p+u-c+z-t+u-h-a-208+h-37664745*p*91251472+z*s-x+x*h*u
             return 1;
             ";
 
-            var r = TestHelper.GetParseResultStatements(expr);
+            var r = TestHelper.GetParseResultStatements(expr, methods: methods);
             Assert.Equal(ExpressionType.IfElse, r[0].ExpressionType);
             Assert.Equal(3, ((IfElseStatement) r[0]).IfTrue.Statements.Length);
             Assert.Equal(4, ((IfElseStatement) r[0]).Else.Statements.Length);
             Assert.True(((IfElseStatement) r[0]).Else.IsReturnStatement);
+        }
+
+
+        [Fact]
+        public void DefineBooleanVariableTest()
+        {
+            var expr =
+                $@"
+            bool boolTrue = true;
+            bool boolFalse = false;
+            return 1;
+            ";
+
+            var r = TestHelper.GetParseResultStatements(expr);
+            Assert.Equal(ExpressionType.Assignment, r[0].ExpressionType);
+            Assert.Equal("boolTrue", ((AssignmentStatement) r[0]).Left.Name);
+            Assert.Equal(ExpressionType.Assignment, r[1].ExpressionType);
+            Assert.Equal("boolFalse", ((AssignmentStatement) r[1]).Left.Name);
         }
     }
 }

@@ -7,43 +7,6 @@ using Xunit.Abstractions;
 
 namespace Parser
 {
-    public static class MethodsFieldsForTests
-    {
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static long MethodWithoutParameters() => 1;
-
-        public const string MethodWithoutParametersText = @"
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static long MethodWithoutParameters() => 1;";
-
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static long MethodWith1Parameter(long x) => x;
-
-        public const string MethodWith1ParameterText = @"
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static long MethodWith1Parameter(long x) => x;";
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static long MethodWith2Parameters(long x, long y) => (x + y);
-
-        public const string MethodWith2ParametersText = @"
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static long MethodWith2Parameters(long x, long y) => (x + y);";
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static long MethodWith3Parameters(long x, long y, long z) => (x + y + z);
-
-        public const string MethodWith3ParametersText = @"
-         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static long MethodWith3Parameters(long x, long y, long z) => (x + y + z);";
-
-
-        public static long a = 1;
-        public static long b = 2;
-        public static long c = 3;
-    }
-
     public class BumpTests
     {
         private readonly ITestOutputHelper _testOutputHelper;
@@ -97,8 +60,8 @@ namespace Parser
         {
             var actual = TestHelper.GeneratedExpressionMySelf(expr, out var myFunc);
             var expected = TestHelper.GeneratedRoslynExpression(expr, out var expectedFunc);
-            Assert.Equal(expectedFunc(1,1,1), myFunc(1, 1, 1));
-        } 
+            Assert.Equal(expectedFunc(1, 1, 1), myFunc(1, 1, 1));
+        }
 
         // public long Test11()
         // {
@@ -136,79 +99,10 @@ namespace Parser
             var actual = TestHelper.GeneratedExpressionMySelf(expression, out var func);
 
             var expected = TestHelper.GeneratedRoslynExpression(expression, out var monoFunc);
-
         }
 
 
-        [Theory]
-        [InlineData("1+MethodWithoutParameters()",
-            new[] {MethodsFieldsForTests.MethodWithoutParametersText},
-            new[] {nameof(MethodsFieldsForTests.MethodWithoutParameters)})]
-        [InlineData("1+MethodWith1Parameter(3)",
-            new[] {MethodsFieldsForTests.MethodWith1ParameterText},
-            new[] {nameof(MethodsFieldsForTests.MethodWith1Parameter)})]
-        [InlineData("1+MethodWith2Parameters(1,3)",
-            new[] {MethodsFieldsForTests.MethodWith2ParametersText},
-            new[] {nameof(MethodsFieldsForTests.MethodWith2Parameters)})]
-        public void ExpressionWithCallsStaticMethods(string expression, string[] methods, string[] methodNames)
-        {
-            var actual = TestHelper.GeneratedExpressionMySelf(expression, out var func);
-
-            var expected = TestHelper.GeneratedRoslynExpression(expression, out var monoFunc);
-
-            Assert.Equal(func(1, 2, 3), monoFunc(1, 2, 3));
-        }
-
-        [Theory]
-        [InlineData("1+MethodWith1Parameter(x)",
-            new[] {MethodsFieldsForTests.MethodWith1ParameterText},
-            new[] {nameof(MethodsFieldsForTests.MethodWith1Parameter)})]
-        [InlineData("1+MethodWith3Parameters(x,y,z)",
-            new[] {MethodsFieldsForTests.MethodWith3ParametersText},
-            new[] {nameof(MethodsFieldsForTests.MethodWith3Parameters)})]
-        [InlineData("1+MethodWith3Parameters(a,1324,c)",
-            new[] {MethodsFieldsForTests.MethodWith3ParametersText},
-            new[] {nameof(MethodsFieldsForTests.MethodWith3Parameters)})]
-        public void Parse__StaticMethodWithVariableParameters__Correct
-            (string expression, string[] methods, string[] methodNames)
-        {
-            var actual = TestHelper.GeneratedExpressionMySelf(expression, out var func);
-
-            var expected =
-                TestHelper.GeneratedRoslynExpression(expression, out var monoFunc);
-
-            Assert.Equal(func(1, 2, 3), monoFunc(1, 2, 3));
-        }
-
-        [Theory]
-        [InlineData("1+MethodWith1Parameter(x+12+y)",
-            new[] {MethodsFieldsForTests.MethodWith1ParameterText},
-            new[] {nameof(MethodsFieldsForTests.MethodWith1Parameter)})]
-        [InlineData("1+MethodWith1Parameter(x+12+y)*MethodWith1Parameter(12*14)",
-            new[] {MethodsFieldsForTests.MethodWith1ParameterText},
-            new[] {nameof(MethodsFieldsForTests.MethodWith1Parameter)})]
-        [InlineData(
-            "1+MethodWith1Parameter(x+12+y)*MethodWith1Parameter(12*14+MethodWithoutParameters()*MethodWith3Parameters(x,y,z))",
-            new[]
-            {
-                MethodsFieldsForTests.MethodWith1ParameterText, MethodsFieldsForTests.MethodWithoutParametersText,
-                MethodsFieldsForTests.MethodWith3ParametersText
-            },
-            new[]
-            {
-                nameof(MethodsFieldsForTests.MethodWith1Parameter),
-                nameof(MethodsFieldsForTests.MethodWithoutParameters),
-                nameof(MethodsFieldsForTests.MethodWith3Parameters)
-            })]
-        public void Parse__StaticMethodWithExpressionParameter(string expr, string[] methodAsText, string[] methodNames)
-        {
-            var actual = TestHelper.GeneratedExpressionMySelf(expr, out var func);
-
-            var expected = TestHelper.GeneratedRoslynExpression(expr, out var monoFunc);
-
-            Assert.Equal(func(1, 2, 3), monoFunc(1, 2, 3));
-        }
-
+       
         [Fact]
         public void IlCodeIsIdentical()
         {
@@ -261,7 +155,8 @@ namespace Parser
             catch (DivideByZeroException)
             {
                 // _testOutputHelper.WriteLine("MyResult DivideByZeroException in compile time");
-                Assert.Throws<DivideByZeroException>(() => TestHelper.GeneratedRoslynExpression(expression, out rosynFunc));
+                Assert.Throws<DivideByZeroException>(() =>
+                    TestHelper.GeneratedRoslynExpression(expression, out rosynFunc));
                 // _testOutputHelper.WriteLine("Roslyn DivideByZeroException in compile time");
                 return;
             }

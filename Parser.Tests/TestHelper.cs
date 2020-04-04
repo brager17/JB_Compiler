@@ -5,34 +5,43 @@ using System.Reflection;
 using System.Reflection.Emit;
 using Compiler;
 using Mono.Cecil;
-using CompileExpressionVisitor = Parser.Tests.CompileExpressionVisitor;
+using Parser.Tests.ILGeneratorTests;
 
 
 namespace Parser
 {
     public static class TestHelper
     {
-        public static IExpression GetParseResultExpression(string expression, bool constantFolding = true)
+        public static IExpression GetParseResultExpression(string expression, bool constantFolding = true,
+            Dictionary<string, (CompilerType[] parameters, CompilerType @return)> methods = null)
         {
             var lexer = new Lexer(expression);
             var readOnlyList = lexer.ReadAll();
-            var parser = new Parser(readOnlyList,
-                parameters: new Dictionary<string, CompilerType>
+            var context = new ParserContext(
+                readOnlyList,
+                new Dictionary<string, CompilerType>
                     {{"x", CompilerType.Long}, {"y", CompilerType.Long}, {"z", CompilerType.Long}},
-                constantFolding: constantFolding);
+                null,
+                methods,
+                constantFolding
+            );
+            var parser = new Parser(context);
             var result = parser.ParseExpression();
             return result;
         }
 
-        public static IStatement[] GetParseResultStatements(string expression)
+        public static IStatement[] GetParseResultStatements(string expression,
+            Dictionary<string, (CompilerType[] parameters, CompilerType @return)> methods = null)
         {
             var lexer = new Lexer(expression);
             var readOnlyList = lexer.ReadAll();
-            var parser = new Parser(readOnlyList,
-                parameters: new Dictionary<string, CompilerType>
-                    {{"x", CompilerType.Long}, {"y", CompilerType.Long}, {"z", CompilerType.Long}});
+            var context = new ParserContext(
+                readOnlyList, new Dictionary<string, CompilerType>
+                    {{"x", CompilerType.Long}, {"y", CompilerType.Long}, {"z", CompilerType.Long}}, null, methods
+            );
+            var parser = new Parser(context);
             var result = parser.Parse();
-            return result;
+            return result.Statements;
         }
 
         public static string[] GeneratedExpressionMySelf(string expression, out Func<long, long, long, long> func)
@@ -44,27 +53,29 @@ namespace Parser
                 .Where(x => x.FieldType == typeof(long) || x.FieldType == typeof(int))
                 .ToDictionary(x => x.Name, x => x);
 
+            var staticMethods = typeof(MethodsFieldsForTests)
+                .GetMethods(BindingFlags.Static | BindingFlags.Public)
+                .ToDictionary(x => x.Name, x => x);
 
-            var variables = new Dictionary<string, CompilerType>()
+            var methodParameters = new Dictionary<string, CompilerType>()
                 {{"x", CompilerType.Long}, {"y", CompilerType.Long}, {"z", CompilerType.Long}};
-            if (staticFields != null)
-                foreach (var item in staticFields)
-                {
-                    variables.Add(item.Key, item.Value.FieldType == typeof(int) ? CompilerType.Int : CompilerType.Long);
-                }
 
             var tokens = lexer.ReadAll();
-            var parser = new Parser(tokens, variables);
+
+
+            var context = new ParserContext(
+                tokens, methodParameters,
+                staticFields.ToDictionary(x => x.Key, x => x.Value.FieldType.GetRoslynType()),
+                staticMethods.ToDictionary(x => x.Key,
+                    x => (x.Value.GetParameters().Select(xx => xx.ParameterType.GetRoslynType()).ToArray(),
+                        x.Value.ReturnType.GetRoslynType()))
+            );
+            var parser = new Parser(context);
             var r = parser.ParseExpression();
             var dynamicMethod = new DynamicMethod(
                 "method",
                 typeof(long),
                 new[] {typeof(long), typeof(long), typeof(long)});
-
-
-            var staticMethods = typeof(MethodsFieldsForTests)
-                .GetMethods(BindingFlags.Static | BindingFlags.Public)
-                .ToDictionary(x => x.Name, x => x);
 
 
             var visitor =
@@ -94,6 +105,13 @@ namespace Parser
                 .Where(x => closedFields?.ContainsKey(x.Name) ?? true)
                 .ToDictionary(x => x.Name, x => x);
 
+            var staticMethods = typeof(MethodsFieldsForTests)
+                .GetMethods(BindingFlags.Static | BindingFlags.Public)
+                .Union(@this != null
+                    ? @this.GetMethods(BindingFlags.Static | BindingFlags.Public)
+                    : Array.Empty<MethodInfo>())
+                .ToDictionary(x => x.Name, x => x);
+
             parameters ??= new Dictionary<string, CompilerType>()
             {
                 {"x", CompilerType.Long},
@@ -102,11 +120,14 @@ namespace Parser
             };
 
             var tokens = lexer.ReadAll();
-            var parser = new Parser(tokens, parameters,
-                staticFields.ToDictionary(
+            var context = new ParserContext(tokens, parameters, staticFields.ToDictionary(
                     x => x.Key,
-                    x => x.Value == typeof(int) ? CompilerType.Int : CompilerType.Long));
+                    x => x.Value.FieldType.GetRoslynType()),
+                staticMethods.ToDictionary(x => x.Key,
+                    x => (x.Value.GetParameters().Select(xx => xx.ParameterType.GetRoslynType()).ToArray(),
+                        x.Value.ReturnType.GetRoslynType())));
 
+            var parser = new Parser(context);
             var r = parser.Parse();
 
             var dynamicMethod = new DynamicMethod(
@@ -114,13 +135,6 @@ namespace Parser
                 typeof(long),
                 new[] {typeof(long), typeof(long), typeof(long)});
 
-
-            var staticMethods = typeof(MethodsFieldsForTests)
-                .GetMethods(BindingFlags.Static | BindingFlags.Public)
-                .Union(@this != null
-                    ? @this.GetMethods(BindingFlags.Static | BindingFlags.Public)
-                    : Array.Empty<MethodInfo>())
-                .ToDictionary(x => x.Name, x => x);
 
             var visitor = new CompileExpressionVisitor(
                 dynamicMethod,
@@ -163,10 +177,10 @@ namespace Parser
 
             return instructions.Select(x => x.ToString().Remove(0, 9)).ToArray();
         }
-        
-        public static string[] GeneratedRoslynMethod(string methodBody,out Func<long, long, long, long> func)
+
+        public static string[] GeneratedRoslynMethod(string methodBody, out Func<long, long, long, long> func)
         {
-            var assembly = testCasesGenerator.GetAssemblyStream(methodBody:methodBody);
+            var assembly = testCasesGenerator.GetAssemblyStream(methodBody: methodBody);
 
             var methodDefinition = AssemblyDefinition.ReadAssembly(assembly).MainModule
                 .GetTypes()
@@ -189,7 +203,5 @@ namespace Parser
 
             return instructions.Select(x => x.ToString().Remove(0, 9)).ToArray();
         }
-        
-        
     }
 }

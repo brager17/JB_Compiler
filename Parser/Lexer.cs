@@ -22,6 +22,7 @@ namespace Parser
         Constant,
         IntWord,
         LongWord,
+        BoolWord,
 
         RefWord,
         Semicolon,
@@ -37,7 +38,8 @@ namespace Parser
         EqualTo,
         NotEqualTo,
         Or,
-        And
+        And,
+        Not,
     }
 
 
@@ -67,6 +69,7 @@ namespace Parser
         public static Token RefWord = new Token("ref", TokenType.RefWord);
 
         public static Token LongWord = new Token("long", TokenType.LongWord);
+        public static Token BoolWord = new Token("bool", TokenType.BoolWord);
 
         // todo:: лучше сделать Word, а не Constant
         public static Token IntMaxValue = new Token("int.MaxValue", TokenType.Constant);
@@ -75,6 +78,9 @@ namespace Parser
         public static Token LongMinValue = new Token("long.MinValue", TokenType.Constant);
         public static Token And = new Token("&&", TokenType.And);
         public static Token Or = new Token("||", TokenType.Or);
+        public static Token Not = new Token("!", TokenType.Not);
+        public static Token True = new Token("true", TokenType.Constant);
+        public static Token False = new Token("false", TokenType.Constant);
 
         public Token(string value)
         {
@@ -124,6 +130,7 @@ namespace Parser
             {"else", Token.ElseWord},
             {"int", Token.IntWord},
             {"long", Token.LongWord},
+            {"bool", Token.BoolWord},
             {"return", Token.Return},
             {"int.MinValue", Token.IntMinValue},
             {"int.MaxValue", Token.IntMaxValue},
@@ -132,6 +139,9 @@ namespace Parser
             {"||", Token.Or},
             {"&&", Token.And},
             {"ref", Token.RefWord},
+            {"!", Token.Not},
+            {"true", Token.True},
+            {"false", Token.False},
         };
 
         string[] SeqKeyWords => keyWordsDictionary.Select(x => x.Key).ToArray();
@@ -149,6 +159,7 @@ namespace Parser
             // todo pattern mathicg must be better
             for (var i = 0; i < _program.Length; i++)
             {
+                if (_program[i] == ' ') continue;
                 if (TryGetKeyWord(ref i, out var token))
                 {
                     tokens.Add(token);
@@ -170,9 +181,9 @@ namespace Parser
                     tokens.Add(new Token(methodName, TokenType.Word));
                     tokens.Add(Token.LeftParent);
                 }
-                else if (IsChar(_program[i]))
+                else if (IsVariable(ref i, out var variable))
                 {
-                    tokens.Add(new Token(_program[i].ToString(), TokenType.Variable));
+                    tokens.Add(new Token(variable, TokenType.Variable));
                 }
 
 
@@ -204,6 +215,9 @@ namespace Parser
                 if (!SeqKeyWords.Any(x => x.StartsWith(sb.ToString())))
                 {
                     if (!matchedTokens.Any()) return false;
+                    // bool boolVariable;
+                    if (IsChar(sb[^1]) && (IsChar(sb[^2]))) return false;
+
                     token = matchedTokens.Last();
                     i = j - 2;
                     return true;
@@ -218,6 +232,23 @@ namespace Parser
 
         private bool IsDigit(char c) => c >= '0' && c <= '9';
         private bool IsChar(char c) => c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z';
+
+        private bool IsVariable(ref int i, out string name)
+        {
+            name = default;
+            if (IsDigit(_program[i])) return false;
+            int j = i;
+            var sb = new StringBuilder();
+            while (j < _program.Length && (IsChar(_program[j]) || IsDigit(_program[j])))
+            {
+                sb.Append(_program[j++]);
+            }
+
+            if (sb.Length == 0) return false;
+            name = sb.ToString();
+            i = --j;
+            return true;
+        }
 
         private bool IsMethodName(ref int i, out string methodName)
         {

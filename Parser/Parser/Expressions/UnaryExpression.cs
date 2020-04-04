@@ -2,8 +2,8 @@ namespace Parser
 {
     public enum UnaryType
     {
-        Positive,
-        Negative
+        Negative,
+        Not
     }
 
     public class UnaryExpression : IExpression
@@ -11,12 +11,13 @@ namespace Parser
         public readonly IExpression Expression;
         public readonly UnaryType UnaryType;
 
-        public UnaryExpression(IExpression expression)
+        public UnaryExpression(IExpression expression,UnaryType unaryType)
         {
             Expression = expression;
-            UnaryType = UnaryType.Negative;
+            UnaryType = unaryType;
             ReturnType = expression.ReturnType;
         }
+
 
         public ExpressionType ExpressionType { get; } = ExpressionType.Unary;
         public CompilerType ReturnType { get; }

@@ -221,7 +221,35 @@ namespace Parser
             Assert.Equal(TokenType.Num, tokens[10].Type);
         }
 
-      
+        [Fact]
+        public void NotTest()
+        {
+            var expr = "!(x!=1)";
+            var tokens = GetLexerResult(expr);
+            Assert.Equal(tokens[0].Type,TokenType.Not);
+            Assert.Equal(tokens[1].Type,TokenType.LeftParent);
+            Assert.Equal(tokens[2].Type,TokenType.Variable);
+            Assert.Equal(tokens[3].Type,TokenType.NotEqualTo);
+            Assert.Equal(tokens[4].Type,TokenType.Num);
+            Assert.Equal(tokens[5].Type,TokenType.RightParent);
+        }
+
+        
+        [Fact]
+        public void TrueTest()
+        {
+            var trueExpr = "if(true){}";
+            var tokens = GetLexerResult(trueExpr);
+            Assert.Equal(tokens[2].Type, TokenType.Constant);
+        }
+
+        [Fact]
+        public void FalseTest()
+        {
+            var trueExpr = "if(false){}";
+            var tokens = GetLexerResult(trueExpr);
+            Assert.Equal(tokens[2].Type, TokenType.Constant);
+        }
         private IReadOnlyList<Token> GetLexerResult(string expr)
         {
             var lexer = new Lexer(expr);

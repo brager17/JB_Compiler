@@ -8,31 +8,6 @@ using Parser;
 
 namespace Compiler
 {
-    
-    public static class ExpressionExtensions
-    {
-        public static bool TryCast<T>(this IExpression expression, out T value) where T : IExpression
-        {
-            switch (expression.ExpressionType)
-            {
-                case ExpressionType.Variable when typeof(T) == typeof(VariableExpression):
-                case ExpressionType.Primary when typeof(T) == typeof(PrimaryExpression):
-                case ExpressionType.Binary when typeof(T) == typeof(BinaryExpression):
-                case ExpressionType.Unary when typeof(T) == typeof(UnaryExpression):
-                case ExpressionType.MethodCallExpression when typeof(T) == typeof(MethodCallExpression):
-                    value = (T) expression;
-                    return true;
-                default:
-                    value = default;
-                    return false;
-            }
-        }
-
-        public static long AsLong(this PrimaryExpression primaryExpression) => long.Parse(primaryExpression.Value);
-        public static int AsInt(this PrimaryExpression primaryExpression) => int.Parse(primaryExpression.Value);
-        public static uint AsUInt(this PrimaryExpression primaryExpression) => uint.Parse(primaryExpression.Value);
-    }
-
     public class ILCompiler
     {
         private readonly bool _throwIfOverflow;
@@ -48,7 +23,7 @@ namespace Compiler
         public delegate long CompileResult(long x, long y, long z);
 
 
-        public CompileResult Compile(IStatement[] statements)
+        public CompileResult Compile(Statement statements)
         {
             var dynamicMethod = new DynamicMethod(
                 "method",
@@ -64,7 +39,7 @@ namespace Compiler
             return (CompileResult) dynamicMethod.CreateDelegate(typeof(CompileResult), null);
         }
 
-        public T Compile<T>(IStatement[] statements, string[] methodParameters) where T : Delegate
+        public T Compile<T>(Statement statements, string[] methodParameters) where T : Delegate
         {
             var dynamicMethod = new DynamicMethod(
                 "method",
@@ -111,7 +86,7 @@ namespace Compiler
                 _logger.Add(log);
             }
 
-            internal string[] GetLogs => _logger.ToArray();
+            public string[] GetLogs => _logger.ToArray();
         }
 
         private readonly string[] _parameters;
@@ -140,9 +115,10 @@ namespace Compiler
         }
 
 
-        public void Start(IStatement[] statements)
+        public void Start(Statement statements)
         {
             _localVariables = statements
+                .Statements
                 .OfType<AssignmentStatement>()
                 // todo optimize:
                 .GroupBy(x => x.Left.Name)
@@ -155,6 +131,7 @@ namespace Compiler
                 {
                     CompilerType.Long => typeof(long),
                     CompilerType.Int => typeof(int),
+                    CompilerType.Bool => typeof(bool),
                     // CompilerType.UInt => typeof(uint),
                     _ => throw new ArgumentOutOfRangeException()
                 };
@@ -162,212 +139,96 @@ namespace Compiler
                 _ilGenerator.DeclareLocal(type);
             }
 
-            foreach (var statement in statements)
+            foreach (var statement in statements.Statements)
             {
                 VisitStatement(statement);
             }
         }
 
-        public static Dictionary<LogicalOperator, OpCode> OpCodesDic = new Dictionary<LogicalOperator, OpCode>()
+        public override LogicalBinaryExpression VisitLogical(LogicalBinaryExpression logical)
         {
-            {LogicalOperator.And, OpCodes.And},
-            {LogicalOperator.Or, OpCodes.Or},
-            {LogicalOperator.Less, OpCodes.Blt_S},
-            {LogicalOperator.LessOrEq, OpCodes.Ble_S},
-            {LogicalOperator.Greater, OpCodes.Bgt_S},
-            {LogicalOperator.GreaterOrEq, OpCodes.Bge_S},
-            {LogicalOperator.Eq, OpCodes.Beq_S},
-            {LogicalOperator.NoEq, OpCodes.Bne_Un_S}
-        };
-
-        public static Dictionary<LogicalOperator, LogicalOperator> Revert =
-            new Dictionary<LogicalOperator, LogicalOperator>()
+            VisitExpression(logical.Left);
+            VisitExpression(logical.Right);
+            switch (logical.Operator)
             {
-                {LogicalOperator.And, LogicalOperator.Or},
-                {LogicalOperator.Or, LogicalOperator.And},
-                {LogicalOperator.Less, LogicalOperator.GreaterOrEq},
-                {LogicalOperator.LessOrEq, LogicalOperator.Greater},
-                {LogicalOperator.Greater, LogicalOperator.LessOrEq},
-                {LogicalOperator.GreaterOrEq, LogicalOperator.Less},
-                {LogicalOperator.Eq, LogicalOperator.NoEq},
-                {LogicalOperator.NoEq, LogicalOperator.Eq},
-            };
-
-        private bool IsNeedRevert(LogicalOperator @operator) => @operator == LogicalOperator.And;
-
-        private void VisitComplexLogical(LogicalBinaryExpression expression, Label ifTrue, Label ifFalse,
-            bool isNeedRevert)
-        {
-            var left = (LogicalBinaryExpression) expression.Left;
-            var right = (LogicalBinaryExpression) expression.Right;
-            Label startRight;
-            switch (expression.Operator)
-            {
+                case LogicalOperator.Less:
+                    logger.Log("clt");
+                    _ilGenerator.Emit(OpCodes.Clt);
+                    break;
+                case LogicalOperator.LessOrEq:
+                    logger.Log("cgt");
+                    _ilGenerator.Emit(OpCodes.Cgt);
+                    logger.Log("ldc.i4.0");
+                    logger.Log("ceq");
+                    _ilGenerator.Emit(OpCodes.Ldc_I4_0);
+                    _ilGenerator.Emit(OpCodes.Ceq);
+                    break;
+                case LogicalOperator.Greater:
+                    logger.Log("cgt");
+                    _ilGenerator.Emit(OpCodes.Cgt);
+                    break;
+                case LogicalOperator.GreaterOrEq:
+                    logger.Log("clt");
+                    _ilGenerator.Emit(OpCodes.Clt);
+                    logger.Log("ldc.i4.0");
+                    logger.Log("ceq");
+                    _ilGenerator.Emit(OpCodes.Ldc_I4_0);
+                    _ilGenerator.Emit(OpCodes.Ceq);
+                    break;
+                case LogicalOperator.Eq:
+                    logger.Log("ceq");
+                    _ilGenerator.Emit(OpCodes.Ceq);
+                    break;
+                case LogicalOperator.NoEq:
+                    logger.Log("ceq");
+                    _ilGenerator.Emit(OpCodes.Ceq);
+                    logger.Log("ldc.i4.0");
+                    logger.Log("ceq");
+                    _ilGenerator.Emit(OpCodes.Ldc_I4_0);
+                    _ilGenerator.Emit(OpCodes.Ceq);
+                    break;
                 case LogicalOperator.And:
-                    startRight = _ilGenerator.DefineLabel();
-                    AndLeftLogical(left, startRight, ifFalse, isNeedRevert);
-                    _ilGenerator.MarkLabel(startRight);
-                    AndRightLogical(right, ifTrue, ifFalse, IsNeedRevert(right.Operator));
+                    logger.Log("and");
+                    _ilGenerator.Emit(OpCodes.And);
                     break;
                 case LogicalOperator.Or:
-                    startRight = _ilGenerator.DefineLabel();
-                    OrLeftLogical(left, ifTrue, startRight, isNeedRevert);
-                    _ilGenerator.MarkLabel(startRight);
-                    AndRightLogical(right, ifTrue, ifFalse, isNeedRevert);
+                    logger.Log("or");
+                    _ilGenerator.Emit(OpCodes.Or);
                     break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
-        }
-
-        public void OrLeftLogical(LogicalBinaryExpression expression, Label ifTrue, Label ifFalse, bool needRevert)
-        {
-            if (expression.Left.ExpressionType != ExpressionType.Logical &&
-                expression.Right.ExpressionType != ExpressionType.Logical)
-            {
-                VisitExpression(expression.Left);
-                VisitExpression(expression.Right);
-                _ilGenerator.Emit(OpCodesDic[expression.Operator], ifTrue);
             }
 
-            if (expression.Left.ExpressionType == ExpressionType.Logical &&
-                expression.Right.ExpressionType == ExpressionType.Logical)
-            {
-                VisitComplexLogical(expression, ifTrue, ifFalse, needRevert);
-            }
-        }
-
-        public void OrRightLogical(LogicalBinaryExpression expression, Label ifTrue, Label ifFalse, bool needRevert)
-        {
-            if (expression.Left.ExpressionType != ExpressionType.Logical &&
-                expression.Right.ExpressionType != ExpressionType.Logical)
-            {
-                VisitExpression(expression.Left);
-                VisitExpression(expression.Right);
-                if (needRevert)
-                {
-                    _ilGenerator.Emit(OpCodesDic[Revert[expression.Operator]], ifFalse);
-                }
-                else
-                {
-                    _ilGenerator.Emit(OpCodesDic[expression.Operator], ifTrue);
-                }
-            }
-
-            if (expression.Left.ExpressionType == ExpressionType.Logical &&
-                expression.Right.ExpressionType == ExpressionType.Logical)
-            {
-                var left = (LogicalBinaryExpression) expression.Left;
-                var right = (LogicalBinaryExpression) expression.Right;
-                Label startRight;
-                switch (expression.Operator)
-                {
-                    case LogicalOperator.And:
-                        startRight = _ilGenerator.DefineLabel();
-                        AndLeftLogical(left, startRight, ifFalse, IsNeedRevert(left.Operator));
-                        _ilGenerator.MarkLabel(startRight);
-                        AndRightLogical(right, ifTrue, ifFalse, needRevert);
-                        break;
-                    case LogicalOperator.Or:
-                        startRight = _ilGenerator.DefineLabel();
-                        OrLeftLogical(left, ifTrue, startRight, IsNeedRevert(left.Operator));
-                        _ilGenerator.MarkLabel(startRight);
-                        AndRightLogical(right, ifTrue, ifFalse, needRevert);
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException();
-                }
-            }
-        }
-
-
-        public void AndLeftLogical(LogicalBinaryExpression expression, Label ifTrue, Label ifFalse, bool needRevert)
-        {
-            if (expression.Left.ExpressionType != ExpressionType.Logical &&
-                expression.Right.ExpressionType != ExpressionType.Logical)
-            {
-                VisitExpression(expression.Left);
-                VisitExpression(expression.Right);
-                _ilGenerator.Emit(OpCodesDic[Revert[expression.Operator]], ifFalse);
-            }
-
-            if (expression.Left.ExpressionType == ExpressionType.Logical &&
-                expression.Right.ExpressionType == ExpressionType.Logical)
-            {
-                VisitComplexLogical(expression, ifTrue, ifFalse, needRevert);
-            }
-        }
-
-        public void AndRightLogical(LogicalBinaryExpression expression, Label ifTrue, Label ifFalse, bool needRevert)
-        {
-            if (expression.Left.ExpressionType != ExpressionType.Logical &&
-                expression.Right.ExpressionType != ExpressionType.Logical)
-            {
-                VisitExpression(expression.Left);
-                VisitExpression(expression.Right);
-                _ilGenerator.Emit(OpCodesDic[Revert[expression.Operator]], ifFalse);
-            }
-
-            if (expression.Left.ExpressionType == ExpressionType.Logical &&
-                expression.Right.ExpressionType == ExpressionType.Logical)
-            {
-                VisitComplexLogical(expression, ifTrue, ifFalse, needRevert);
-            }
+            return logical;
         }
 
         public override IfElseStatement VisitIfElse(IfElseStatement statement)
         {
-            var startIfStatement = _ilGenerator.DefineLabel();
-            var startElseStatement = statement.Else == null ? default : _ilGenerator.DefineLabel();
-            var afterAllStatements = _ilGenerator.DefineLabel();
-
-            Label startRight;
-            switch (statement.Test.Operator)
+            VisitExpression(statement.Test);
+            var @startEnd = _ilGenerator.DefineLabel();
+            var @elseStart = statement.Else == null ? startEnd : _ilGenerator.DefineLabel();
+            logger.Log($"brfalse {nameof(elseStart)}");
+            _ilGenerator.Emit(OpCodes.Brfalse_S, elseStart);
+            VisitStatement(statement.IfTrue);
+            if (!statement.IfTrue.IsReturnStatement)
             {
-                case LogicalOperator.Less:
-                case LogicalOperator.Eq:
-                case LogicalOperator.LessOrEq:
-                case LogicalOperator.Greater:
-                case LogicalOperator.GreaterOrEq:
-                case LogicalOperator.NoEq:
-                    VisitExpression(statement.Test.Left);
-                    VisitExpression(statement.Test.Right);
-                    _ilGenerator.Emit(OpCodesDic[Revert[statement.Test.Operator]],
-                        startElseStatement == default ? afterAllStatements : startElseStatement);
-                    break;
-                case LogicalOperator.And:
-                    startRight = _ilGenerator.DefineLabel();
-                    AndLeftLogical((LogicalBinaryExpression) statement.Test.Left, startRight,
-                        startElseStatement == default ? afterAllStatements : startElseStatement, true);
-                    _ilGenerator.MarkLabel(startRight);
-                    AndRightLogical((LogicalBinaryExpression) statement.Test.Right, startIfStatement,
-                        startElseStatement == default ? afterAllStatements : startElseStatement, true);
-                    break;
-                case LogicalOperator.Or:
-                    startRight = _ilGenerator.DefineLabel();
-                    OrLeftLogical((LogicalBinaryExpression) statement.Test.Left, startIfStatement,
-                        startRight, false);
-                    _ilGenerator.MarkLabel(startRight);
-                    OrRightLogical((LogicalBinaryExpression) statement.Test.Right, startIfStatement,
-                        startElseStatement == default ? afterAllStatements : startElseStatement, true);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
+                logger.Log($"br {nameof(startEnd)}");
+                _ilGenerator.Emit(OpCodes.Br, startEnd);
             }
 
-            _ilGenerator.MarkLabel(startIfStatement);
-            var ifStatements = statement.IfTrue.Statements.Select(VisitStatement).ToArray();
-
-            IStatement[] elseStatements = null;
             if (statement.Else != null)
             {
-                if (!statement.IfTrue.IsReturnStatement)
-                    _ilGenerator.Emit(OpCodes.Br_S, afterAllStatements);
-                _ilGenerator.MarkLabel(startElseStatement);
-                elseStatements = statement.Else.Statements.Select(VisitStatement).ToArray();
+                logger.Log($"mark {nameof(elseStart)}");
+                _ilGenerator.MarkLabel(elseStart);
+                VisitStatement(statement.Else);
+                logger.Log($"mark {nameof(startEnd)}");
+                _ilGenerator.MarkLabel(startEnd);
+            }
+            else
+            {
+                logger.Log($"mark {nameof(startEnd)}");
+                _ilGenerator.MarkLabel(startEnd);
             }
 
-            _ilGenerator.MarkLabel(afterAllStatements);
+
             return statement;
         }
 
@@ -447,9 +308,25 @@ namespace Compiler
         public override UnaryExpression VisitUnary(UnaryExpression unaryExpression)
         {
             var expression = VisitExpression(unaryExpression.Expression);
-            logger.Log("neg");
-            _ilGenerator.Emit(OpCodes.Neg);
-            return new UnaryExpression(expression);
+            switch (unaryExpression.UnaryType)
+            {
+                case UnaryType.Negative:
+                {
+                    logger.Log("neg");
+                    _ilGenerator.Emit(OpCodes.Neg);
+                    return new UnaryExpression(expression, UnaryType.Negative);
+                }
+                case UnaryType.Not:
+                {
+                    logger.Log("Ldc.I4.0");
+                    _ilGenerator.Emit(OpCodes.Ldc_I4_0);
+                    logger.Log("ceq");
+                    _ilGenerator.Emit(OpCodes.Ceq);
+                    return new UnaryExpression(expression, UnaryType.Not);
+                }
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
         }
 
         private void IntEmit(int value)
@@ -510,14 +387,22 @@ namespace Compiler
 
         public override PrimaryExpression VisitPrimary(PrimaryExpression primaryExpression)
         {
-            if (primaryExpression.ReturnType == CompilerType.Long)
+            switch (primaryExpression.ReturnType)
             {
-                logger.Log($"ldc.i8 {primaryExpression.AsLong()}");
-                _ilGenerator.Emit(OpCodes.Ldc_I8, primaryExpression.AsLong());
-            }
-            else if (primaryExpression.ReturnType == CompilerType.Int)
-            {
-                IntEmit(primaryExpression.AsInt());
+                case CompilerType.Long:
+                    logger.Log($"ldc.i8 {primaryExpression.AsLong()}");
+                    _ilGenerator.Emit(OpCodes.Ldc_I8, primaryExpression.AsLong());
+                    break;
+                case CompilerType.Int:
+                    IntEmit(primaryExpression.AsInt());
+                    break;
+                case CompilerType.Bool:
+                    var value = primaryExpression.AsBool();
+                    logger.Log(value ? "ldc.i4.1" : "ldc.i4.0");
+                    _ilGenerator.Emit(value ? OpCodes.Ldc_I4_1 : OpCodes.Ldc_I4_0);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
 
             return primaryExpression;
@@ -525,9 +410,20 @@ namespace Compiler
 
         public override MethodCallExpression VisitMethod(MethodCallExpression methodCallExpression)
         {
-            base.VisitMethod(methodCallExpression);
-
             var method = _closedMethods[methodCallExpression.Name];
+            var methodParams = method.GetParameters();
+
+            for (var i = 0; i < methodCallExpression.Parameters.Count; i++)
+            {
+                var expression = methodCallExpression.Parameters[i];
+                VisitExpression(expression);
+                if (expression.ReturnType == CompilerType.Int && methodParams[i].ParameterType == typeof(long))
+                {
+                    logger.Log("conv.i8");
+                    _ilGenerator.Emit(OpCodes.Conv_I8);
+                }
+            }
+
             var logParams = string.Join(",", method.GetParameters().Select(x => x.ParameterType.ToString()));
             logger.Log($"call {method.ReturnType} {TestedTypeFullName}::{method.Name}({logParams})");
             _ilGenerator.Emit(OpCodes.Call, _closedMethods[methodCallExpression.Name]);

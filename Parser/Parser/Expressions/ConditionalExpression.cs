@@ -33,18 +33,18 @@ namespace Parser
 
     public class IfElseStatement : IStatement
     {
-        public LogicalBinaryExpression Test;
+        public IExpression Test;
         public readonly Statement IfTrue;
         public readonly Statement Else;
 
-        public IfElseStatement(LogicalBinaryExpression test, Statement ifTrue, Statement @else)
+        public IfElseStatement(IExpression test, Statement ifTrue, Statement @else)
         {
             Test = test;
             IfTrue = ifTrue;
             Else = @else;
         }
         
-        public IfElseStatement(LogicalBinaryExpression test, Statement ifTrue)
+        public IfElseStatement(IExpression test, Statement ifTrue)
         {
             Test = test;
             IfTrue = ifTrue;

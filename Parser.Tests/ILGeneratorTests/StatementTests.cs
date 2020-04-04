@@ -95,7 +95,7 @@ namespace Parser.ILGeneratorTests
         }
 
         [Theory]
-        [InlineData("int t=1;long q=2;long r = t + q;return r;","r")]
+        [InlineData("int t=1;long q=2;long r = t + q;return r;", "r")]
         [InlineData("long u = 1;long q = int.MaxValue+u;return q;", "q")]
         [InlineData("long u = 1;long q = int.MaxValue+u;int w = int.MaxValue-2;return q+w;", "q+w")]
         [InlineData("long u = 1;long q = int.MaxValue+u;int w = int.MaxValue-2;return q*w;", "q*w")]
@@ -104,8 +104,8 @@ namespace Parser.ILGeneratorTests
         [InlineData("long u = 1;long q = int.MaxValue+u;long w = long.MaxValue;return q+w;", "q+w")]
         public void Test(string expr, string @return)
         {
-            var t=TestHelper.GeneratedStatementsMySelf(expr, out var func);
-            var tt=TestHelper.GeneratedRoslynExpression(@return,
+            var t = TestHelper.GeneratedStatementsMySelf(expr, out var func);
+            var tt = TestHelper.GeneratedRoslynExpression(@return,
                 out var roslynFunc,
                 statements: expr
                     .Split(';')
@@ -115,7 +115,6 @@ namespace Parser.ILGeneratorTests
             // Assert.Equal(t,tt);
         }
 
-       
 
         [Fact]
         public void BumpTest()
@@ -169,6 +168,24 @@ namespace Parser.ILGeneratorTests
             //         throw;
             //     }
             // }
+        }
+
+        [Fact]
+        public void DefineBooleanVariables()
+        {
+            var expr =
+                @"
+            bool boolTrue = x > 1;
+            bool boolFalse = y > 1;
+            if(boolTrue && boolFalse) {return 1;} else {return 0;}
+            ";
+
+            var r = TestHelper.GeneratedStatementsMySelf(expr, out var func);
+
+            Assert.Equal(0, func(1, 1, 0));
+            Assert.Equal(0, func(2, 1, 0));
+            Assert.Equal(0, func(1, 2, 0));
+            Assert.Equal(1, func(2, 2, 0));
         }
     }
 }

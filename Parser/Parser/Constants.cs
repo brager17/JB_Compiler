@@ -13,6 +13,8 @@ namespace Parser
                 // {"uint.MaxValue", ( uint.MaxValue.ToString(), CompilerType.UInt)},
                 {"long.MinValue", ( long.MinValue.ToString(), CompilerType.Long)},
                 {"long.MaxValue", ( long.MaxValue.ToString(), CompilerType.Long)},
+                {"true", ("true", CompilerType.Bool)},
+                {"false", ("false", CompilerType.Bool)},
             };
     }
 }

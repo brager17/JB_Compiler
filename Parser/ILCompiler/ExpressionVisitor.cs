@@ -47,11 +47,19 @@ namespace Compiler
                     return VisitUnary((UnaryExpression) expression);
                 case ExpressionType.MethodCallExpression:
                     return VisitMethod((MethodCallExpression) expression);
+                case ExpressionType.Logical:
+                    return VisitLogical((LogicalBinaryExpression) expression);
                 default:
                     throw new ArgumentOutOfRangeException();
             }
         }
 
+        public virtual LogicalBinaryExpression VisitLogical(LogicalBinaryExpression logical)
+        {
+            return logical;
+        }
+
+        
         public virtual Statement VisitStatement(Statement statement)
         {
             return new Statement(statement.Statements.Select(VisitStatement).ToArray());
@@ -89,7 +97,7 @@ namespace Compiler
         public virtual UnaryExpression VisitUnary(UnaryExpression unaryExpression)
         {
             var expression = VisitExpression(unaryExpression.Expression);
-            return new UnaryExpression(expression);
+            return new UnaryExpression(expression,UnaryType.Negative);
         }
 
         public virtual PrimaryExpression VisitPrimary(PrimaryExpression primaryExpression)

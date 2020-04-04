@@ -13,6 +13,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Mono.Cecil;
 using Newtonsoft.Json;
+using Parser.Exceptions;
 using Xunit;
 using Xunit.Abstractions;
 using Xunit.Sdk;
@@ -74,7 +75,8 @@ namespace Parser
         // todo : modify
         public void Test4()
         {
-            var @exception = Assert.Throws<Exception>(() => TestHelper.GetParseResultExpression("(2+2))*2", false));
+            var @exception =
+                Assert.Throws<CompileException>(() => TestHelper.GetParseResultExpression("(2+2))*2", false));
             Assert.Equal(exception.Message, "Expression is incorrect");
         }
 
@@ -114,7 +116,16 @@ namespace Parser
         [Fact]
         public void Test6()
         {
-            var result = TestHelper.GetParseResultExpression("(x+1)*y+z+Method(1,x,14,-1)");
+            var methods = new Dictionary<string, (CompilerType[] parameters, CompilerType @return)>()
+            {
+                {
+                    "Method",
+                    (new[] {CompilerType.Long, CompilerType.Long, CompilerType.Long, CompilerType.Long},
+                        CompilerType.Long)
+                }
+            };
+
+            var result = TestHelper.GetParseResultExpression("(x+1)*y+z+Method(1,x,14,-1)", methods: methods);
 
             JsonAssert(
                 new BinaryExpression(
@@ -130,7 +141,7 @@ namespace Parser
                         {
                             new PrimaryExpression("1"), new VariableExpression("x", CompilerType.Long),
                             new PrimaryExpression("14"),
-                            new UnaryExpression(new PrimaryExpression("1"))
+                            new UnaryExpression(new PrimaryExpression("1"), UnaryType.Negative)
                         }
                     ),
                     TokenType.Plus
@@ -141,7 +152,12 @@ namespace Parser
         [Fact]
         public void Test7()
         {
-            var result = TestHelper.GetParseResultExpression("M(1) + M1(x)");
+            var methods = new Dictionary<string, (CompilerType[] parameters, CompilerType @return)>()
+            {
+                {"M", (new[] {CompilerType.Int}, CompilerType.Long)},
+                {"M1", (new[] {CompilerType.Long}, CompilerType.Long)},
+            };
+            var result = TestHelper.GetParseResultExpression("M(1) + M1(x)",methods:methods);
 
             JsonAssert(
                 new BinaryExpression(
@@ -213,6 +229,24 @@ namespace Parser
                 _testOutputHelper.WriteLine(instruction.ToString());
             }
         }
+
+        [Fact]
+        public void TrueTest()
+        {
+            var expr = "if(true){} return 1;";
+            var result = TestHelper.GetParseResultStatements(expr);
+            Assert.Equal("true", ((PrimaryExpression) ((IfElseStatement) result[0]).Test).Value);
+        }
+
+
+        [Fact]
+        public void FalseTest()
+        {
+            var expr = "if(false){} return 1;";
+            var result = TestHelper.GetParseResultStatements(expr);
+            Assert.Equal("false", ((PrimaryExpression) ((IfElseStatement) result[0]).Test).Value);
+        }
+
 
         [Fact]
         public void Test11()

@@ -1,39 +1,30 @@
 using System;
 using System.Collections.Generic;
-using System.Linq.Expressions;
 using Compiler;
+using Parser.Exceptions;
 
 namespace Parser
 {
-    // todo разделить для Expression'ов и для Statement'ов
-    public enum ExpressionType
+    public class ParserContext
     {
-        Variable = 1,
-        Primary,
-        Binary,
-        Unary,
-        MethodCallExpression,
-        VoidMethodCallStatement,
-        Assignment,
-        Logical,
-        Return,
-        IfElse,
-        Statement
-    }
+        public ParserContext(IReadOnlyList<Token> tokens, Dictionary<string, CompilerType> methodParameters,
+            Dictionary<string, CompilerType> closureFields,
+            Dictionary<string, (CompilerType[] parameters, CompilerType @return)> closureMethods,
+            bool constantFolding = true)
+        {
+            Tokens = tokens;
+            MethodParameters = methodParameters ?? new Dictionary<string, CompilerType>();
+            ClosureFields = closureFields ?? new Dictionary<string, CompilerType>();
+            ClosureMethods = closureMethods ??
+                             new Dictionary<string, (CompilerType[] parameters, CompilerType @return)>();
+            ConstantFolding = constantFolding;
+        }
 
-    public interface IExpression
-    {
-        public ExpressionType ExpressionType { get; }
-        public CompilerType ReturnType { get; }
-    }
-
-    public enum CompilerType
-    {
-        Int = 1,
-
-        // UInt,
-        Long,
-        Bool,
+        public readonly IReadOnlyList<Token> Tokens;
+        public readonly Dictionary<string, CompilerType> MethodParameters;
+        public readonly Dictionary<string, CompilerType> ClosureFields;
+        public readonly Dictionary<string, (CompilerType[] parameters, CompilerType @return)> ClosureMethods;
+        public readonly bool ConstantFolding;
     }
 
     public class Parser
@@ -43,20 +34,18 @@ namespace Parser
         private Dictionary<string, CompilerType> _parameters;
         private Dictionary<string, CompilerType> _localVariables = new Dictionary<string, CompilerType>();
         private TokenSequence _tokenSequence;
+        public readonly Dictionary<string, (CompilerType[] parameters, CompilerType @return)> _closureMethods;
 
-        public Parser(
-            IReadOnlyList<Token> tokens,
-            Dictionary<string, CompilerType> parameters = null,
-            Dictionary<string, CompilerType> closedFields = null,
-            bool constantFolding = true)
+        public Parser(ParserContext context)
         {
-            _tokenSequence = new TokenSequence(tokens);
-            _parameters = parameters ?? new Dictionary<string, CompilerType>();
-            _closedFields = closedFields ?? new Dictionary<string, CompilerType>();
-            _constantFolding = constantFolding;
+            _tokenSequence = new TokenSequence(context.Tokens);
+            _parameters = context.MethodParameters;
+            _closedFields = context.ClosureFields;
+            _constantFolding = context.ConstantFolding;
+            _closureMethods = context.ClosureMethods;
         }
 
-        public IStatement[] Parse()
+        public Statement Parse()
         {
             var list = new List<IStatement>();
             while (!_tokenSequence.IsEmpty)
@@ -64,7 +53,15 @@ namespace Parser
                 list.Add(Statement());
             }
 
-            return list.ToArray();
+            var statement = new Statement(list.ToArray());
+
+            // todo: можно улучшить , чтобы не проходить второй раз
+            if (!statement.IsReturnStatement)
+            {
+                throw new CompileException("End of function is reachable without any return statement");
+            }
+
+            return statement;
         }
 
         public IExpression ParseExpression()
@@ -73,7 +70,7 @@ namespace Parser
             // todo можно улучшить, потому что не конкретизируем ошибку
             if (!_tokenSequence.IsEmpty)
             {
-                throw new Exception("Expression is incorrect");
+                throw new CompileException("Expression is incorrect");
             }
 
             return expression;
@@ -82,6 +79,7 @@ namespace Parser
 
         public bool CheckCannotImplicitConversion(VariableExpression left, IExpression right)
         {
+            // check it : long l = int.MaxValue+1;  int i = l;
             if (left.ReturnType == CompilerType.Long) return false;
 
             if (right.TryCast<PrimaryExpression>(out var primary) && primary.ReturnType == CompilerType.Long)
@@ -101,7 +99,9 @@ namespace Parser
         private IStatement AssignmentStatement()
         {
             VariableExpression variableExpression = null;
-            if (_tokenSequence.Current?.Type == TokenType.IntWord || _tokenSequence.Current?.Type == TokenType.LongWord)
+            if (_tokenSequence.Current?.Type == TokenType.BoolWord ||
+                _tokenSequence.Current?.Type == TokenType.IntWord ||
+                _tokenSequence.Current?.Type == TokenType.LongWord)
             {
                 var keywordType = _tokenSequence.Current.Type;
                 _tokenSequence.Step();
@@ -110,16 +110,18 @@ namespace Parser
                 {
                     TokenType.IntWord => CompilerType.Int,
                     TokenType.LongWord => CompilerType.Long,
+                    TokenType.BoolWord => CompilerType.Bool
                 };
 
                 if (_localVariables.TryGetValue(_tokenSequence.Current.Value, out _))
                 {
-                    throw new Exception($"Variable with name '{_tokenSequence.Current.Value}' is already declared");
+                    throw new CompileException(
+                        $"Variable with name '{_tokenSequence.Current.Value}' is already declared");
                 }
 
                 if (_parameters.ContainsKey(_tokenSequence.Current.Value))
                 {
-                    throw new Exception(
+                    throw new CompileException(
                         $"A local or parameter named '{_tokenSequence.Current.Value}' cannot be declared in this scope because that name is used in an enclosing local scope to define a local or parameter");
                 }
 
@@ -136,7 +138,7 @@ namespace Parser
                 }
                 else
                 {
-                    throw new Exception($"Variable with name '{_tokenSequence.Current.Value}' is not declared");
+                    throw new CompileException($"Variable with name '{_tokenSequence.Current.Value}' is not declared");
                 }
             }
 
@@ -145,12 +147,12 @@ namespace Parser
 
             if (CheckCannotImplicitConversion(variableExpression, expression))
             {
-                throw new Exception("Cannot implicitly convert type 'long ' to int");
+                throw new CompileException("Cannot implicitly convert type 'long ' to int");
             }
 
             if (_tokenSequence.Current?.Type != TokenType.Semicolon)
             {
-                throw new Exception("Statement must be ended by semicolon");
+                throw new CompileException("Statement must be ended by semicolon");
             }
 
             _tokenSequence.Step();
@@ -171,7 +173,7 @@ namespace Parser
                 var expression = Expression();
                 if (_tokenSequence.Current?.Type != TokenType.Semicolon)
                 {
-                    throw new Exception("Return must be ended by semicolon");
+                    throw new CompileException("Return must be ended by semicolon");
                 }
 
                 _tokenSequence.Step();
@@ -189,14 +191,14 @@ namespace Parser
                 var methodCall = MethodCallExpression();
                 if (_tokenSequence.Current.Type != TokenType.Semicolon)
                 {
-                    throw new Exception("Missing semicolon");
+                    throw new CompileException("Missing semicolon");
                 }
 
                 _tokenSequence.Step();
                 return new VoidMethodCallStatement(methodCall);
             }
 
-            throw new Exception("дописать остальные виды statements");
+            throw new CompileException("дописать остальные виды statements");
         }
 
         public IfElseStatement IfElseStatement()
@@ -204,7 +206,7 @@ namespace Parser
             _tokenSequence.Step();
             if (_tokenSequence.Current.Type != TokenType.LeftParent)
             {
-                throw new Exception("Missing Left Parent");
+                throw new CompileException("Missing Left Parent");
             }
 
             _tokenSequence.Step();
@@ -212,13 +214,13 @@ namespace Parser
 
             if (_tokenSequence.Current.Type != TokenType.RightParent)
             {
-                throw new Exception("Missing Right Parent");
+                throw new CompileException("Missing Right Parent");
             }
 
             _tokenSequence.Step();
             if (_tokenSequence.Current.Type != TokenType.LeftBrace)
             {
-                throw new Exception("Missing left brace");
+                throw new CompileException("Missing left brace");
             }
 
             _tokenSequence.Step();
@@ -234,7 +236,7 @@ namespace Parser
             if (_tokenSequence.Next?.Type != TokenType.ElseWord)
             {
                 _tokenSequence.Step();
-                return new IfElseStatement((LogicalBinaryExpression) expression,
+                return new IfElseStatement(expression,
                     new Statement(ifStatements.ToArray()));
             }
 
@@ -242,7 +244,7 @@ namespace Parser
             _tokenSequence.Step();
             if (_tokenSequence.Current.Type != TokenType.LeftBrace)
             {
-                throw new Exception("Missing left brace");
+                throw new CompileException("Missing left brace");
             }
 
             _tokenSequence.Step();
@@ -254,12 +256,12 @@ namespace Parser
 
             if (_tokenSequence.Current.Type != TokenType.RightBrace)
             {
-                throw new Exception("Missing right brace");
+                throw new CompileException("Missing right brace");
             }
 
             _tokenSequence.Step();
 
-            return new IfElseStatement((LogicalBinaryExpression) expression,
+            return new IfElseStatement(expression,
                 new Statement(ifStatements.ToArray()),
                 new Statement(elseStatements.ToArray()));
         }
@@ -400,7 +402,7 @@ namespace Parser
                 IExpression ReturnExpression(string num, CompilerType type)
                 {
                     if (num[0] == '-')
-                        return new UnaryExpression(new PrimaryExpression(num[1..], type));
+                        return new UnaryExpression(new PrimaryExpression(num[1..], type), UnaryType.Negative);
                     return new PrimaryExpression(num, type);
                 }
 
@@ -564,7 +566,7 @@ namespace Parser
             {
                 if (_tokenSequence.Get(1).Type == TokenType.Num)
                 {
-                    return new UnaryExpression(ParseNumber());
+                    return new UnaryExpression(ParseNumber(), UnaryType.Negative);
                 }
 
                 _tokenSequence.Step();
@@ -577,7 +579,14 @@ namespace Parser
                     return primary;
                 }
 
-                return new UnaryExpression(expression);
+                return new UnaryExpression(expression, UnaryType.Negative);
+            }
+
+            if (_tokenSequence.Current.Type == TokenType.Not)
+            {
+                _tokenSequence.Step();
+                var expression = Expression();
+                return new UnaryExpression(expression, UnaryType.Not);
             }
 
             return Primary();
@@ -678,7 +687,7 @@ namespace Parser
                 {
                     _tokenSequence.Step();
                     if (item.Item1[0] != '-') return new PrimaryExpression(item.Item1, item.Item2);
-                    return new UnaryExpression(new PrimaryExpression(item.Item1[1..], item.Item2));
+                    return new UnaryExpression(new PrimaryExpression(item.Item1[1..], item.Item2), UnaryType.Negative);
                 }
 
                 throw new Exception("Unknown constant");
@@ -702,22 +711,33 @@ namespace Parser
         private MethodCallExpression MethodCallExpression()
         {
             var methodName = _tokenSequence.Current.Value;
+            var methodInfo = _closureMethods[methodName];
             _tokenSequence.Step();
             if (_tokenSequence.Current.Type != TokenType.LeftParent)
             {
-                throw new Exception("Opening bracket must be after method name");
+                throw new CompileException("Opening bracket must be after method name");
             }
 
             _tokenSequence.Step();
             var @params = new List<IExpression>();
-            while (_tokenSequence.Current?.Type != TokenType.RightParent)
+            int i = 0;
+            for (i = 0; _tokenSequence.Current?.Type != TokenType.RightParent && i < methodInfo.parameters.Length; i++)
             {
-                @params.Add(Expression());
+                var methodParameter = methodInfo.parameters[i];
+                var parameter = Expression();
+
+                if (methodParameter != parameter.ReturnType)
+                {
+                    if (!(methodParameter == CompilerType.Long && parameter.ReturnType == CompilerType.Int))
+                        throw new CompileException($"Incorrect parameters passed for the {methodName} method");
+                }
+
+                @params.Add(parameter);
 
                 if (_tokenSequence.Current.Type != TokenType.Comma &&
                     _tokenSequence.Current.Type != TokenType.RightParent)
                 {
-                    throw new Exception("Method parameters must be separated by comma");
+                    throw new CompileException("Method parameters must be separated by comma");
                 }
 
                 if (_tokenSequence.Current.Type == TokenType.Comma)
@@ -726,7 +746,12 @@ namespace Parser
                 }
             }
 
-            if (_tokenSequence.Current == null) throw new Exception("Method must end with the closing bracket");
+            if (i != methodInfo.parameters.Length || _tokenSequence.Current?.Type != TokenType.RightParent)
+            {
+                throw new CompileException($"{methodName} method passed an incorrect number of parameters");
+            }
+
+            if (_tokenSequence.Current == null) throw new CompileException("Method must end with the closing bracket");
             _tokenSequence.Step();
             return new MethodCallExpression(methodName, @params);
         }

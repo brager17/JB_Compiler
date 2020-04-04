@@ -1,4 +1,5 @@
 using System;
+using Parser.Exceptions;
 using Xunit;
 
 namespace Parser
@@ -10,7 +11,7 @@ namespace Parser
         [InlineData("int q = long.MaxValue;")]
         public void Parse__ImplicitIntToLong__ThrowError(string expr)
         {
-            var exception = Assert.Throws<Exception>(() => TestHelper.GeneratedStatementsMySelf(expr, out _));
+            var exception = Assert.Throws<CompileException>(() => TestHelper.GeneratedStatementsMySelf(expr, out _));
             Assert.Equal("Cannot implicitly convert type 'long ' to int", exception.Message);
         }
         
