@@ -1,7 +1,7 @@
-using System.Reflection;
+using Parser.Parser.Expressions;
 using Xunit;
 
-namespace Parser
+namespace Parser.Tests.ParserTests.BinaryExpressionsParsingTests
 {
     public class ConditionalExpressionTests
     {

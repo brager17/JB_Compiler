@@ -1,9 +1,8 @@
-using System;
-using Parser.Exceptions;
-using Parser.Tests.ILGeneratorTests;
+using Parser.Parser.Exceptions;
+using Parser.Tests.ILGeneratorTests.MethodTests;
 using Xunit;
 
-namespace Parser
+namespace Parser.Tests.ParserTests.StatementTests
 {
     public class CannotImplicitlyIntToLongTests
     {

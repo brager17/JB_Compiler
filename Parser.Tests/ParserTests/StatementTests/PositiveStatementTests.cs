@@ -1,11 +1,13 @@
 using System.Collections.Generic;
 using System.Linq;
-using Compiler;
-using Parser.Exceptions;
-using Parser.Tests.ILGeneratorTests;
+using Parser.Parser.Exceptions;
+using Parser.Parser.Expressions;
+using Parser.Parser.Statements;
+using Parser.Tests.ILGeneratorTests.MethodTests;
+using Parser.Utils;
 using Xunit;
 
-namespace Parser
+namespace Parser.Tests.ParserTests.StatementTests
 {
     public class NegativeStatementTests
     {

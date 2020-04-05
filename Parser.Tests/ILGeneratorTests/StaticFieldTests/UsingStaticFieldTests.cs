@@ -1,4 +1,5 @@
 using JetBrains.Annotations;
+using Parser.Tests.ILGeneratorTests.MethodTests;
 using Xunit;
 
 namespace Parser.Tests.ILGeneratorTests.StaticFieldTests

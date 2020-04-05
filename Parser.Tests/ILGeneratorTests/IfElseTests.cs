@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Parser.Tests.ILGeneratorTests.MethodTests;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -337,7 +338,6 @@ namespace Parser.Tests.ILGeneratorTests
             Assert.Equal(expectedFunc(2, 0, 2), func(2, 0, 2));
             Assert.Equal(expectedFunc(2, 1, 2), func(2, 1, 2));
             Assert.Equal(expectedFunc(2, 2, 2), func(2, 2, 2));
-
         }
 
 
@@ -388,7 +388,7 @@ namespace Parser.Tests.ILGeneratorTests
             Assert.Equal(roslynFunc(0, 1, 1), func(0, 1, 1));
             Assert.Equal(roslynFunc(1, 1, 1), func(1, 1, 1));
         }
-        
+
         [Fact]
         public void Compile__OrOperatorWithNotExpressions__AsRoslynResult()
         {
@@ -445,9 +445,7 @@ namespace Parser.Tests.ILGeneratorTests
             Assert.Equal(expectedFunc(1, 21, 0), func(1, 21, 0));
         }
 
-     
 
-        
         [Fact]
         public void Compile__AndOperator__AsRoslynResult()
         {
@@ -472,7 +470,7 @@ namespace Parser.Tests.ILGeneratorTests
         }
 
         [Fact]
-        public void  Compile__DoubleAndOperator__AsRoslynResult()
+        public void Compile__DoubleAndOperator__AsRoslynResult()
         {
             var expr =
                 $@"
@@ -502,7 +500,6 @@ namespace Parser.Tests.ILGeneratorTests
         }
 
 
-      
         [Fact]
         public void Compile__IfTrue__UseIfStatement()
         {
@@ -557,6 +554,18 @@ namespace Parser.Tests.ILGeneratorTests
             statement = "if(false || false){return 1;}else{return 0;}";
             Compiler.CompileStatement(statement, out func);
             Assert.Equal(0, func(0, 0, 0));
+        }
+
+        [Fact]
+        public void Compile__UsingNotWithBooleanVariables()
+        {
+            var expr = "bool test = true; if(!test){return 0;}else {return 1;};";
+            var f = Compiler.CompileStatement(expr);
+            Assert.Equal(1, f(0, 0, 0));
+
+            expr = "bool test = false; if(!test){return 0;}else {return 1;};";
+            f = Compiler.CompileStatement(expr);
+            Assert.Equal(0, f(0, 0, 0));
         }
     }
 }

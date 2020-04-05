@@ -1,8 +1,7 @@
-using System;
-using Parser.Exceptions;
+using Parser.Parser.Exceptions;
 using Xunit;
 
-namespace Parser
+namespace Parser.Tests.ParserTests.StatementTests
 {
     public class ReturnStatementTests
     {

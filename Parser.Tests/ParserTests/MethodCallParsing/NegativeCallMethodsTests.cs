@@ -1,8 +1,9 @@
 using JetBrains.Annotations;
-using Parser.Exceptions;
+using Parser.Parser.Exceptions;
+using Parser.Tests.ILGeneratorTests.MethodTests;
 using Xunit;
 
-namespace Parser.Tests.ILGeneratorTests
+namespace Parser.Tests.ParserTests.MethodCallParsing
 {
     public class NegativeCallMethodsTests
     {

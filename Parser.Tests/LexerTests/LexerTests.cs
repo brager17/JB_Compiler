@@ -1,9 +1,8 @@
 using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
+using Parser.Lexer;
 using Xunit;
 
-namespace Parser
+namespace Parser.Tests.LexerTests
 {
     public class LexerTests
     {
@@ -11,7 +10,7 @@ namespace Parser
         public void Tokenize__BracketNumBracket__LexerDoesntReturnMethodCallExpression()
         {
             var randomExpr = @"x *(8 * (5))";
-            var lexer = new Lexer(randomExpr);
+            var lexer = new Lexer.Lexer(randomExpr);
             var tokens = lexer.Tokenize();
             Assert.Equal(tokens[0].Type, TokenType.Variable);
             Assert.Equal(tokens[0].Value, "x");
@@ -31,7 +30,7 @@ namespace Parser
         public void Tokenize__ConstantSum__Correct()
         {
             var expr = "int.MaxValue + long.MaxValue";
-            var lexer = new Lexer(expr);
+            var lexer = new Lexer.Lexer(expr);
             var tokens = lexer.Tokenize();
 
             Assert.Equal(TokenType.Constant, tokens[0].Type);
@@ -45,7 +44,7 @@ namespace Parser
         public void Tokenize__ConstantMul__Correct()
         {
             var expr = "(int.MaxValue + long.MaxValue)*(int.MinValue*long.MinValue)";
-            var lexer = new Lexer(expr);
+            var lexer = new Lexer.Lexer(expr);
             var tokens = lexer.Tokenize();
 
             Assert.Equal(TokenType.Constant, tokens[1].Type);
@@ -60,7 +59,7 @@ namespace Parser
         public void Tokenize__ConstantMulWithExcessBrackets__Correct()
         {
             var expr = "(int.MaxValue + (long.MaxValue))*(int.MinValue*long.MinValue)";
-            var lexer = new Lexer(expr);
+            var lexer = new Lexer.Lexer(expr);
             var tokens = lexer.Tokenize();
 
             Assert.Equal(TokenType.Constant, tokens[1].Type);
@@ -186,7 +185,7 @@ namespace Parser
         {
             var expr = "if(1 == 1) {return 1} else {return 2}";
 
-            var lexer = new Lexer(expr);
+            var lexer = new Lexer.Lexer(expr);
             var result = lexer.Tokenize();
 
             Assert.Equal(TokenType.IfWord, result[0].Type);
@@ -230,21 +229,21 @@ namespace Parser
         {
             var expr = "!(x!=1)";
             var tokens = GetLexerResult(expr);
-            Assert.Equal(tokens[0].Type,TokenType.Not);
-            Assert.Equal(tokens[1].Type,TokenType.LeftParent);
-            Assert.Equal(tokens[2].Type,TokenType.Variable);
-            Assert.Equal(tokens[3].Type,TokenType.NotEqualTo);
-            Assert.Equal(tokens[4].Type,TokenType.Constant);
-            Assert.Equal(tokens[5].Type,TokenType.RightParent);
+            Assert.Equal(tokens[0].Type, TokenType.Not);
+            Assert.Equal(tokens[1].Type, TokenType.LeftParent);
+            Assert.Equal(tokens[2].Type, TokenType.Variable);
+            Assert.Equal(tokens[3].Type, TokenType.NotEqualTo);
+            Assert.Equal(tokens[4].Type, TokenType.Constant);
+            Assert.Equal(tokens[5].Type, TokenType.RightParent);
         }
 
-        
+
         [Fact]
         public void Tokenize__True__Correct()
         {
             var trueExpr = "if(true){}";
             var tokens = GetLexerResult(trueExpr);
-            Assert.Equal(tokens[2].Type, TokenType.Constant);
+            Assert.Equal(TokenType.Constant, tokens[2].Type);
         }
 
         [Fact]
@@ -252,11 +251,32 @@ namespace Parser
         {
             var trueExpr = "if(false){}";
             var tokens = GetLexerResult(trueExpr);
-            Assert.Equal(tokens[2].Type, TokenType.Constant);
+            Assert.Equal(TokenType.Constant, tokens[2].Type);
         }
+
+        [Fact]
+        public void Tokenize__UsingWithWord()
+        {
+            var expr = "if(!test){return 0;}else {return 1};";
+
+            var result = GetLexerResult(expr);
+
+            Assert.Equal(TokenType.Not, result[2].Type);
+        }
+        
+        [Fact]
+        public void Tokenize__IgnoreSemicolonAfterRightBracket()
+        {
+            var expr = "if(true){};;;;;;;";
+
+            var result = GetLexerResult(expr);
+
+            Assert.Equal(6, result.Count);
+        }
+
         private IReadOnlyList<Token> GetLexerResult(string expr)
         {
-            var lexer = new Lexer(expr);
+            var lexer = new Lexer.Lexer(expr);
             return lexer.Tokenize();
         }
     }

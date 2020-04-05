@@ -1,6 +1,6 @@
 using JetBrains.Annotations;
 
-namespace Parser.Tests.ILGeneratorTests
+namespace Parser.Tests.ILGeneratorTests.MethodTests
 {
     public static class MethodsFieldsForTests
     {

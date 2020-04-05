@@ -1,8 +1,9 @@
-using System.Reflection;
-using Compiler;
+using Parser.Parser.Expressions;
+using Parser.Parser.Statements;
+using Parser.Utils;
 using Xunit;
 
-namespace Parser
+namespace Parser.Tests.ParserTests.StatementTests
 {
     public class IfElseStatementTest
     {

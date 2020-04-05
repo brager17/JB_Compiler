@@ -1,10 +1,8 @@
-using System;
-using System.Linq;
-using System.Reflection;
-using Compiler;
+using Parser.Parser.Expressions;
+using Parser.Utils;
 using Xunit;
 
-namespace Parser
+namespace Parser.Tests.ParserTests
 {
     public class ConstantFoldingTests
     {

@@ -1,8 +1,7 @@
-using System.Runtime.CompilerServices;
 using JetBrains.Annotations;
 using Xunit;
 
-namespace Parser.Tests.ILGeneratorTests
+namespace Parser.Tests.ILGeneratorTests.MethodTests
 {
     public class PositiveCallMethodsTests
     {

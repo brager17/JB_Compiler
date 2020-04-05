@@ -1,14 +1,10 @@
-using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
-using Parser.Tests.ILGeneratorTests;
+using Parser.Tests.ILGeneratorTests.MethodTests;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace Parser.ILGeneratorTests
+namespace Parser.Tests.ILGeneratorTests
 {
-    //todo добавить в шаблон класса для Рослина реализацию всех методов, чтобы можно было их использовать не передавая из тестов, какие именно методы нужно добавить в шаблон класса 
     public class StatementTests
     {
         private readonly ITestOutputHelper _testOutputHelper;

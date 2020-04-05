@@ -1,6 +1,7 @@
+using Parser.Parser.Expressions;
 using Xunit;
 
-namespace Parser
+namespace Parser.Tests.ParserTests
 {
     public class UnaryTests
     {

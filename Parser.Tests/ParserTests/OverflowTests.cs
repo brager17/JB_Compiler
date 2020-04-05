@@ -1,10 +1,10 @@
 using System;
-using System.Linq.Expressions;
-using System.Reflection;
-using Parser.Exceptions;
+using Parser.Parser.Exceptions;
+using Parser.Parser.Expressions;
 using Xunit;
+using UnaryExpression = Parser.Parser.Expressions.UnaryExpression;
 
-namespace Parser
+namespace Parser.Tests.ParserTests
 {
     public class OverflowTests
     {

@@ -1,11 +1,13 @@
 using System.Collections.Generic;
 using Newtonsoft.Json;
-using Parser.Exceptions;
+using Parser.Lexer;
+using Parser.Parser.Exceptions;
+using Parser.Parser.Expressions;
 using Xunit;
 using Xunit.Abstractions;
 using Xunit.Sdk;
 
-namespace Parser.BinaryExpressionsParsingTests
+namespace Parser.Tests.ParserTests.BinaryExpressionsParsingTests
 {
     public class NegativeBinaryExpressionParsingTests
     {

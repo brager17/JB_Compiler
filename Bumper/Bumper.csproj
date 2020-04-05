@@ -6,8 +6,8 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\ILCompiler\ILCompiler.csproj" />
       <ProjectReference Include="..\Parser.Tests\Parser.Tests.csproj" />
-      <ProjectReference Include="..\Parser\Parser.csproj" />
     </ItemGroup>
 
 </Project>

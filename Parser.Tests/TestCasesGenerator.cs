@@ -2,15 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text;
-using Compiler;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Parser.Tests.ILGeneratorTests;
+using Parser.Tests.ILGeneratorTests.MethodTests;
 using Xunit;
 
-namespace Parser
+namespace Parser.Tests
 {
     public class TestCasesGenerator
     {

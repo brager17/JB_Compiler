@@ -2,20 +2,19 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Reflection.Emit;
-using Compiler;
 using Mono.Cecil;
-using Parser.Tests.ILGeneratorTests;
+using Parser.Parser;
+using Parser.Parser.Expressions;
+using Parser.Parser.Statements;
 
-
-namespace Parser
+namespace Parser.Tests
 {
     public static class TestHelper
     {
         public static IExpression GetParseResultExpression(string expression, bool constantFolding = true,
             Dictionary<string, (CompilerType[] parameters, CompilerType @return)> methods = null)
         {
-            var lexer = new Lexer(expression);
+            var lexer = new Lexer.Lexer(expression);
             var readOnlyList = lexer.Tokenize();
             var context = new ParserContext(
                 readOnlyList,
@@ -25,7 +24,7 @@ namespace Parser
                 methods,
                 constantFolding
             );
-            var parser = new Parser(context);
+            var parser = new Parser.Parser(context);
             var result = parser.ParseExpression();
             return result;
         }
@@ -33,7 +32,7 @@ namespace Parser
         public static IStatement[] GetParseResultStatements(string expression,
             Dictionary<string, (CompilerType[] parameters, CompilerType @return)> methods = null)
         {
-            var lexer = new Lexer(expression);
+            var lexer = new Lexer.Lexer(expression);
             var readOnlyList = lexer.Tokenize();
             var context = new ParserContext(
                 readOnlyList,
@@ -42,7 +41,7 @@ namespace Parser
                 new Dictionary<string, FieldInfo>(), 
                 methods ?? new Dictionary<string, (CompilerType[] parameters, CompilerType @return)>(),
                 true);
-            var parser = new Parser(context);
+            var parser = new Parser.Parser(context);
             var result = parser.Parse();
             return result.Statements;
         }
