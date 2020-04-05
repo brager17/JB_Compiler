@@ -28,42 +28,41 @@ namespace Bumper
         static void Main(string[] args)
         {
             var calculator = @"
-        int op = -1;
-        if ((z < 0 || z > 3) && (operation < 0 || operation > 3) && !useSecretOperation)
-        {
-            PrintErrorMessage();
-            return -1;
-        }
-        if(!(z < 0 || z > 3))
-        { 
-            op = z;
-        }
-        else
-        {
-            if(!(operation < 0 || operation > 3))
-            {
-               op = operation;
-            }
-        }
-        
-        if(op == 0) 
-        {
-            return x + y;
-        }
-        if(op == 1)
-        {
-            return x - y;
-        }
-        if(op == 2) 
-        {
-            return x * y;
-        }
-        if(op == 3)
-        {
-            return x / y;
-        }
-        return SecretOperation(x,y);
-";
+                                int op = -1;
+                                if ((z < 0 || z > 3) && (operation < 0 || operation > 3) && !useSecretOperation)
+                                {
+                                    PrintErrorMessage();
+                                    return -1;
+                                }
+                                if(!(z < 0 || z > 3))
+                                { 
+                                    op = z;
+                                }
+                                else
+                                {
+                                    if(!(operation < 0 || operation > 3))
+                                    {
+                                       op = operation;
+                                    }
+                                }
+                                
+                                if(op == 0) 
+                                {
+                                    return x + y;
+                                }
+                                if(op == 1)
+                                {
+                                    return x - y;
+                                }
+                                if(op == 2) 
+                                {
+                                    return x * y;
+                                }
+                                if(op == 3)
+                                {
+                                    return x / y;
+                                }
+                                return SecretOperation(x,y);";
 
             var func = Compile(calculator);
 
