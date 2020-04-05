@@ -18,7 +18,7 @@ namespace Parser.Tests.ParserTests.StatementTests
             var expr = "int a = 12;return a;";
             var ex = Assert.Throws<CompileException>(() => Compiler.CompileStatement(expr, out var func,
                 methodParameters: new Dictionary<string, CompilerType> {{"a", CompilerType.Int}}));
-            Assert.Equal(
+            Assert.Contains(
                 "A local or parameter named 'a' cannot be declared in this scope because that name is used in an enclosing local scope to define a local or parameter",
                 ex.Message);
         }

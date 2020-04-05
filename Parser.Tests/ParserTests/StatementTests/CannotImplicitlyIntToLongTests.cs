@@ -12,7 +12,7 @@ namespace Parser.Tests.ParserTests.StatementTests
         public void Parse__ImplicitIntToLong__ThrowError(string expr)
         {
             var exception = Assert.Throws<CompileException>(() => Compiler.CompileStatement(expr, out _));
-            Assert.Equal("Cannot implicitly convert type 'long ' to int", exception.Message);
+            Assert.Contains("Cannot implicitly convert type 'long ' to int", exception.Message);
         }
 
         [Theory]
@@ -21,7 +21,7 @@ namespace Parser.Tests.ParserTests.StatementTests
         {
             var exception = Assert.Throws<CompileException>(() =>
                 Compiler.CompileStatement(expr, out _, typeof(MethodsFieldsForTests)));
-            Assert.Equal("Cannot implicitly convert type 'long ' to int", exception.Message);
+            Assert.Contains("Cannot implicitly convert type 'long ' to int", exception.Message);
         }
     }
 }

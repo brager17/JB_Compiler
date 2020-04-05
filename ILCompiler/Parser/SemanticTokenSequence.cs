@@ -23,10 +23,10 @@ namespace Parser.Parser
         public Token? Current => Get(0);
         public Token? Next => Get(1);
 
-        public void Step()
+        public void Step(int i = 1)
         {
             if (IsEmpty) throw new Exception("sequence is empty");
-            _currentIndex++;
+            for (; i > 0; i--) _currentIndex++;
         }
 
         public Token? Get(int i)
@@ -56,22 +56,7 @@ namespace Parser.Parser
             return result;
         }
 
-        public void ThrowIfNotMatched(TokenType type, string message)
-        {
-            if (IsEmpty || Current.Type != type)
-            {
-                throw new CompileException($"{message}{GetPlace()}");
-            }
-
-            Step();
-        }
-
-        public void Throw(string message)
-        {
-            throw new CompileException($"{message}\n Position: {GetPlace()}");
-        }
-
-        private string GetPlace()
+        internal string GetCurrentSubstring()
         {
             var start = _currentIndex > 5 ? _currentIndex - 5 : 0;
 
@@ -92,5 +77,7 @@ namespace Parser.Parser
         public bool IsTypeKeyWord() =>
             Current.Type == TokenType.IntWord || Current.Type == TokenType.LongWord ||
             Current.Type == TokenType.BoolWord;
+
+        public bool IsMethod() => Current?.Type == TokenType.Word && Next.Type == TokenType.LeftParent;
     }
 }

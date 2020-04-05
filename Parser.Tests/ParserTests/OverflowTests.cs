@@ -22,8 +22,8 @@ namespace Parser.Tests.ParserTests
         [InlineData("long.MaxValue*(-2)")]
         public void Parser__OverflowingComping__ThrowException(string expr)
         {
-            var exception = Assert.Throws<Exception>(() => TestHelper.GetParseResultExpression(expr));
-            Assert.Equal("The operation is overflow in compile mode", exception.Message);
+            var exception = Assert.Throws<CompileException>(() => TestHelper.GetParseResultExpression(expr));
+            Assert.Contains("The operation is overflow in compile mode", exception.Message);
         }
 
 
@@ -72,15 +72,15 @@ namespace Parser.Tests.ParserTests
         {
             var s = "36076070326337946946";
             var exception = Assert.Throws<CompileException>(() => TestHelper.GetParseResultExpression(s));
-            Assert.Equal("Integral constant is too large", exception.Message);
+            Assert.Contains("Integral constant is too large", exception.Message);
         }
 
         [Fact]
         public void IntOverflow()
         {
             var expr = @"42209068 * (95)";
-            var exception = Assert.Throws<Exception>(() => TestHelper.GetParseResultExpression(expr));
-            Assert.Equal("The operation is overflow in compile mode", exception.Message);
+            var exception = Assert.Throws<CompileException>(() => TestHelper.GetParseResultExpression(expr));
+            Assert.Contains("The operation is overflow in compile mode", exception.Message);
         }
 
         [Theory]
