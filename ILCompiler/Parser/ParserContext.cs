@@ -9,7 +9,7 @@ namespace Parser.Parser
     {
         public ParserContext(IReadOnlyList<Token> tokens, Dictionary<string, CompilerType> methodParameters,
             Dictionary<string, FieldInfo> closureFields,
-            Dictionary<string, (CompilerType[] parameters, CompilerType @return)> closureMethods,
+            Dictionary<string,MethodInfo> closureMethods,
             bool constantFolding)
         {
             Tokens = tokens;
@@ -22,7 +22,7 @@ namespace Parser.Parser
         public readonly IReadOnlyList<Token> Tokens;
         public readonly Dictionary<string, CompilerType> MethodParameters;
         public readonly Dictionary<string, FieldInfo> ClosureFields;
-        public readonly Dictionary<string, (CompilerType[] parameters, CompilerType @return)> ClosureMethods;
+        public readonly Dictionary<string, MethodInfo> ClosureMethods;
         public readonly bool ConstantFolding;
     }
 }

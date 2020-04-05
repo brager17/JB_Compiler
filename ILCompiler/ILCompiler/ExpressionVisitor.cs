@@ -7,7 +7,7 @@ namespace Parser.ILCompiler
 {
     public class ExpressionVisitor
     {
-        public virtual IStatement VisitStatement(IStatement statement)
+        protected virtual IStatement VisitStatement(IStatement statement)
         {
             switch (statement.ExpressionType)
             {
@@ -26,89 +26,102 @@ namespace Parser.ILCompiler
             }
         }
 
-        public virtual VoidMethodCallStatement VisitVoidMethod(VoidMethodCallStatement statement)
+        protected virtual VoidMethodCallStatement VisitVoidMethod(VoidMethodCallStatement statement)
         {
             var method = VisitMethod(statement.Method);
             return new VoidMethodCallStatement(method);
         }
 
-        public virtual IExpression VisitExpression(IExpression expression)
+        protected virtual IExpression VisitExpression(IExpression expression)
         {
             return expression.ExpressionType switch
             {
                 ExpressionType.LocalVariable => (IExpression) VisitLocalVariable((LocalVariableExpression) expression),
                 ExpressionType.FieldVariable => (IExpression) VisitField((FieldVariableExpression) expression),
-                ExpressionType.MethodArgVariable => (IExpression) VisitMethodArgument((MethodArgumentVariableExpression) expression),
+                ExpressionType.MethodArgVariable => (IExpression) VisitMethodArgument(
+                    (MethodArgumentVariableExpression) expression),
                 ExpressionType.Primary => VisitPrimary((PrimaryExpression) expression),
                 ExpressionType.Binary => VisitBinary((BinaryExpression) expression),
                 ExpressionType.Unary => VisitUnary((UnaryExpression) expression),
+                ExpressionType.MethodCallParameter => VisitMethodCallParameter(
+                    (MethodCallParameterExpression) expression),
                 ExpressionType.MethodCallExpression => VisitMethod((MethodCallExpression) expression),
                 ExpressionType.Logical => VisitLogical((LogicalBinaryExpression) expression),
                 _ => throw new ArgumentOutOfRangeException()
             };
         }
 
-        public virtual MethodArgumentVariableExpression VisitMethodArgument(MethodArgumentVariableExpression expression)
+        protected virtual MethodCallParameterExpression VisitMethodCallParameter(MethodCallParameterExpression exp)
+        {
+            var newExp = VisitExpression(exp.Expression);
+            return new MethodCallParameterExpression(newExp, exp.ParameterInfo);
+        }
+
+        protected virtual MethodArgumentVariableExpression VisitMethodArgument(
+            MethodArgumentVariableExpression expression)
         {
             return expression;
         }
 
-        public virtual FieldVariableExpression VisitField(FieldVariableExpression expression)
+        protected virtual FieldVariableExpression VisitField(FieldVariableExpression expression)
         {
             return expression;
         }
 
-        public virtual LogicalBinaryExpression VisitLogical(LogicalBinaryExpression logical)
+        protected virtual LogicalBinaryExpression VisitLogical(LogicalBinaryExpression logical)
         {
             return logical;
         }
 
 
-        public virtual Statement VisitStatement(Statement statement)
+        protected virtual Statement VisitStatement(Statement statement)
         {
             return new Statement(statement.Statements.Select(VisitStatement).ToArray());
         }
 
-        public virtual IfElseStatement VisitIfElse(IfElseStatement statement) => statement;
+        protected virtual IfElseStatement VisitIfElse(IfElseStatement statement) => statement;
 
 
-        public virtual BinaryExpression VisitBinary(BinaryExpression binaryExpression)
+        protected virtual BinaryExpression VisitBinary(BinaryExpression binaryExpression)
         {
             var left = VisitExpression(binaryExpression.Left);
             var right = VisitExpression(binaryExpression.Right);
             return new BinaryExpression(left, right, binaryExpression.TokenType);
         }
 
-        public virtual ReturnStatement VisitReturn(ReturnStatement returnStatement)
+        protected virtual ReturnStatement VisitReturn(ReturnStatement returnStatement)
         {
             VisitExpression(returnStatement.Returned);
             return returnStatement;
         }
 
-        public virtual AssignmentStatement VisitAssignment(AssignmentStatement assignmentStatement)
+        protected virtual AssignmentStatement VisitAssignment(AssignmentStatement assignmentStatement)
         {
             VisitExpression(assignmentStatement.Right);
             return assignmentStatement;
         }
 
-        public virtual IExpression VisitUnary(UnaryExpression unaryExpression)
+        protected virtual IExpression VisitUnary(UnaryExpression unaryExpression)
         {
             var expression = VisitExpression(unaryExpression.Expression);
             return new UnaryExpression(expression, UnaryType.Negative);
         }
 
-        public virtual PrimaryExpression VisitPrimary(PrimaryExpression primaryExpression)
+        protected virtual PrimaryExpression VisitPrimary(PrimaryExpression primaryExpression)
         {
             return primaryExpression;
         }
 
-        public virtual MethodCallExpression VisitMethod(MethodCallExpression methodCallExpression)
+        protected virtual MethodCallExpression VisitMethod(MethodCallExpression methodCallExpression)
         {
-            var expressions = methodCallExpression.Parameters.Select(VisitExpression).ToList();
-            return new MethodCallExpression(methodCallExpression.Name, expressions);
+            var expressions = methodCallExpression.Parameters.Select(VisitExpression)
+                .Cast<MethodCallParameterExpression>()
+                .ToArray();
+
+            return new MethodCallExpression(methodCallExpression.Name, methodCallExpression.MethodInfo, expressions);
         }
 
-        public virtual VariableExpression VisitLocalVariable(LocalVariableExpression variable)
+        protected virtual VariableExpression VisitLocalVariable(LocalVariableExpression variable)
         {
             return variable;
         }

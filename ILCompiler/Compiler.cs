@@ -96,23 +96,16 @@ namespace Parser
                 typeof(long),
                 new[] {typeof(long), typeof(long), typeof(long)});
 
-            var ilCompiler = new CompileExpressionVisitor(dynamicMethod.GetILGenerator(),
-                methods.ToDictionary(x => x.Name, x => x));
+            var ilCompiler = new CompileExpressionVisitor(dynamicMethod.GetILGenerator());
 
             var logs = isStatement ? ilCompiler.Start(statement) : ilCompiler.Start(expression);
             compileResult = (CompileResult) dynamicMethod.CreateDelegate(typeof(CompileResult));
             return logs;
         }
 
-        private static Dictionary<string, (CompilerType[], CompilerType)> GetClosureMethods(MethodInfo[] methods)
+        private static Dictionary<string, MethodInfo> GetClosureMethods(MethodInfo[] methods)
         {
-            return methods.ToDictionary(x => x.Name,
-                x => (
-                    x.GetParameters()
-                        .Select(x => x.ParameterType.GetRoslynType())
-                        .ToArray(),
-                    x.ReturnType.GetRoslynType())
-            );
+            return methods.ToDictionary(x => x.Name, x => x);
         }
     }
 }

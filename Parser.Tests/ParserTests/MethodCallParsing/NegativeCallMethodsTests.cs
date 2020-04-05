@@ -44,7 +44,7 @@ namespace Parser.Tests.ParserTests.MethodCallParsing
         {
             var exception = Assert.Throws<CompileException>
                 (() => Compiler.CompileStatement(expr, out _, typeof(MethodsFieldsForTests)));
-            Assert.Equal(exception.Message,"MethodWith2Parameters method passed an incorrect number of parameters");
+            Assert.Contains("MethodWith2Parameters method passed an incorrect number of parameters",exception.Message);
         }
     }
 }

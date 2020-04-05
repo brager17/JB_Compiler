@@ -291,54 +291,54 @@ namespace Parser.Tests.ILGeneratorTests
 
 
         // [Theory( Skip = "other time")]
-        // [Theory()]
-        // [ClassData(typeof(ComplexConditionalIfTestCases))]
-        // public void Compile__ComplexConditionalIfTest__AsRoslynResult(
-        //     string oneCmp,
-        //     string oneLog,
-        //     string twoCmp,
-        //     string twoLogical,
-        //     string threeCmp)
-        // {
-        //     var expr = $@"
-        //     if(x {oneCmp} 1 {oneLog} y {twoCmp} 1 {twoLogical} z {threeCmp} 1){{return 1;}}
-        //     else {{return 2;}}";
-        //
-        //     _testOutputHelper.WriteLine(expr);
-        //     var actual = Compiler.CompileStatement(expr, out var func);
-        //
-        //     var expected = TestHelper.GeneratedRoslynMethod(expr, out var expectedFunc);
-        //
-        //     Assert.Equal(expectedFunc(0, 0, 0), func(0, 0, 0));
-        //     Assert.Equal(expectedFunc(0, 1, 0), func(0, 1, 0));
-        //     Assert.Equal(expectedFunc(0, 2, 0), func(0, 2, 0));
-        //     Assert.Equal(expectedFunc(1, 0, 0), func(1, 0, 0));
-        //     Assert.Equal(expectedFunc(1, 1, 0), func(1, 1, 0));
-        //     Assert.Equal(expectedFunc(1, 2, 0), func(1, 2, 0));
-        //     Assert.Equal(expectedFunc(2, 0, 0), func(2, 0, 0));
-        //     Assert.Equal(expectedFunc(2, 1, 0), func(2, 1, 0));
-        //     Assert.Equal(expectedFunc(2, 2, 0), func(2, 2, 0));
-        //
-        //     Assert.Equal(expectedFunc(0, 0, 1), func(0, 0, 1));
-        //     Assert.Equal(expectedFunc(0, 1, 1), func(0, 1, 1));
-        //     Assert.Equal(expectedFunc(0, 2, 1), func(0, 2, 1));
-        //     Assert.Equal(expectedFunc(1, 0, 1), func(1, 0, 1));
-        //     Assert.Equal(expectedFunc(1, 1, 1), func(1, 1, 1));
-        //     Assert.Equal(expectedFunc(1, 2, 1), func(1, 2, 1));
-        //     Assert.Equal(expectedFunc(2, 0, 1), func(2, 0, 1));
-        //     Assert.Equal(expectedFunc(2, 1, 1), func(2, 1, 1));
-        //     Assert.Equal(expectedFunc(2, 2, 1), func(2, 2, 1));
-        //
-        //     Assert.Equal(expectedFunc(0, 0, 2), func(0, 0, 2));
-        //     Assert.Equal(expectedFunc(0, 1, 2), func(0, 1, 2));
-        //     Assert.Equal(expectedFunc(0, 2, 2), func(0, 2, 2));
-        //     Assert.Equal(expectedFunc(1, 0, 2), func(1, 0, 2));
-        //     Assert.Equal(expectedFunc(1, 1, 2), func(1, 1, 2));
-        //     Assert.Equal(expectedFunc(1, 2, 2), func(1, 2, 2));
-        //     Assert.Equal(expectedFunc(2, 0, 2), func(2, 0, 2));
-        //     Assert.Equal(expectedFunc(2, 1, 2), func(2, 1, 2));
-        //     Assert.Equal(expectedFunc(2, 2, 2), func(2, 2, 2));
-        // }
+        [Theory]
+        [ClassData(typeof(ComplexConditionalIfTestCases))]
+        public void Compile__ComplexConditionalIfTest__AsRoslynResult(
+            string oneCmp,
+            string oneLog,
+            string twoCmp,
+            string twoLogical,
+            string threeCmp)
+        {
+            var expr = $@"
+            if(x {oneCmp} 1 {oneLog} y {twoCmp} 1 {twoLogical} z {threeCmp} 1){{return 1;}}
+            else {{return 2;}}";
+        
+            _testOutputHelper.WriteLine(expr);
+            var actual = Compiler.CompileStatement(expr, out var func);
+        
+            var expected = TestHelper.GeneratedRoslynMethod(expr, out var expectedFunc);
+        
+            Assert.Equal(expectedFunc(0, 0, 0), func(0, 0, 0));
+            Assert.Equal(expectedFunc(0, 1, 0), func(0, 1, 0));
+            Assert.Equal(expectedFunc(0, 2, 0), func(0, 2, 0));
+            Assert.Equal(expectedFunc(1, 0, 0), func(1, 0, 0));
+            Assert.Equal(expectedFunc(1, 1, 0), func(1, 1, 0));
+            Assert.Equal(expectedFunc(1, 2, 0), func(1, 2, 0));
+            Assert.Equal(expectedFunc(2, 0, 0), func(2, 0, 0));
+            Assert.Equal(expectedFunc(2, 1, 0), func(2, 1, 0));
+            Assert.Equal(expectedFunc(2, 2, 0), func(2, 2, 0));
+        
+            Assert.Equal(expectedFunc(0, 0, 1), func(0, 0, 1));
+            Assert.Equal(expectedFunc(0, 1, 1), func(0, 1, 1));
+            Assert.Equal(expectedFunc(0, 2, 1), func(0, 2, 1));
+            Assert.Equal(expectedFunc(1, 0, 1), func(1, 0, 1));
+            Assert.Equal(expectedFunc(1, 1, 1), func(1, 1, 1));
+            Assert.Equal(expectedFunc(1, 2, 1), func(1, 2, 1));
+            Assert.Equal(expectedFunc(2, 0, 1), func(2, 0, 1));
+            Assert.Equal(expectedFunc(2, 1, 1), func(2, 1, 1));
+            Assert.Equal(expectedFunc(2, 2, 1), func(2, 2, 1));
+        
+            Assert.Equal(expectedFunc(0, 0, 2), func(0, 0, 2));
+            Assert.Equal(expectedFunc(0, 1, 2), func(0, 1, 2));
+            Assert.Equal(expectedFunc(0, 2, 2), func(0, 2, 2));
+            Assert.Equal(expectedFunc(1, 0, 2), func(1, 0, 2));
+            Assert.Equal(expectedFunc(1, 1, 2), func(1, 1, 2));
+            Assert.Equal(expectedFunc(1, 2, 2), func(1, 2, 2));
+            Assert.Equal(expectedFunc(2, 0, 2), func(2, 0, 2));
+            Assert.Equal(expectedFunc(2, 1, 2), func(2, 1, 2));
+            Assert.Equal(expectedFunc(2, 2, 2), func(2, 2, 2));
+        }
 
 
         [Fact]

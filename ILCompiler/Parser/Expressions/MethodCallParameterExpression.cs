@@ -4,17 +4,16 @@ namespace Parser.Parser.Expressions
 {
     public class MethodCallParameterExpression : IExpression
     {
-        public readonly string Name;
-
         public readonly ParameterInfo ParameterInfo;
         public ExpressionType ExpressionType { get; } = ExpressionType.MethodCallParameter;
+        public readonly IExpression Expression;
         public CompilerType ReturnType { get; }
 
-        public MethodCallParameterExpression(string name, ParameterInfo parameterInfo, CompilerType returnType)
+        public MethodCallParameterExpression(IExpression expression,ParameterInfo parameterInfo)
         {
-            Name = name;
             ParameterInfo = parameterInfo;
-            ReturnType = returnType;
+            Expression = expression;
+            ReturnType = expression.ReturnType;
         }
     }
 }

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Parser.Parser.Exceptions;
@@ -93,7 +94,8 @@ namespace Parser.Tests.ParserTests.StatementTests
             var qqAssignment = (AssignmentStatement) result[1];
             Assert.Equal("w", qqAssignment.Left.Name);
             Assert.Equal(ExpressionType.Unary, qqAssignment.Right.ExpressionType);
-            Assert.Equal(ExpressionType.LocalVariable, ((UnaryExpression) qqAssignment.Right).Expression.ExpressionType);
+            Assert.Equal(ExpressionType.LocalVariable,
+                ((UnaryExpression) qqAssignment.Right).Expression.ExpressionType);
             Assert.Equal("q", ((VariableExpression) ((UnaryExpression) qqAssignment.Right).Expression).Name);
         }
 
@@ -130,14 +132,13 @@ namespace Parser.Tests.ParserTests.StatementTests
             Assert.Equal(ExpressionType.Return, result[2].ExpressionType);
         }
 
+        private static void Print()
+        {
+        }
 
         [Fact]
         public void IfStatementTests()
         {
-            var methods = new Dictionary<string, (CompilerType[], CompilerType)>()
-            {
-                {"Print", (new CompilerType[] { }, CompilerType.Void)}
-            };
             var expr =
                 $@"
             if (x == 1)
@@ -156,7 +157,7 @@ namespace Parser.Tests.ParserTests.StatementTests
             return 1;
             ";
 
-            var r = TestHelper.GetParseResultStatements(expr, methods: methods);
+            var r = TestHelper.GetParseResultStatements(expr, new[] {((Action) Print).Method});
             Assert.Equal(ExpressionType.IfElse, r[0].ExpressionType);
             Assert.Equal(3, ((IfElseStatement) r[0]).IfTrue.Statements.Length);
             Assert.Equal(4, ((IfElseStatement) r[0]).Else.Statements.Length);

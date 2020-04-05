@@ -12,7 +12,7 @@ namespace Parser.Tests
     public static class TestHelper
     {
         public static IExpression GetParseResultExpression(string expression, bool constantFolding = true,
-            Dictionary<string, (CompilerType[] parameters, CompilerType @return)> methods = null)
+            MethodInfo[] methodInfos = null)
         {
             var lexer = new Lexer.Lexer(expression);
             var readOnlyList = lexer.Tokenize();
@@ -21,7 +21,7 @@ namespace Parser.Tests
                 new Dictionary<string, CompilerType>
                     {{"x", CompilerType.Long}, {"y", CompilerType.Long}, {"z", CompilerType.Long}},
                 null,
-                methods,
+                methodInfos?.ToDictionary(x => x.Name, x => x) ?? new Dictionary<string, MethodInfo>(),
                 constantFolding
             );
             var parser = new Parser.Parser(context);
@@ -29,8 +29,7 @@ namespace Parser.Tests
             return result;
         }
 
-        public static IStatement[] GetParseResultStatements(string expression,
-            Dictionary<string, (CompilerType[] parameters, CompilerType @return)> methods = null)
+        public static IStatement[] GetParseResultStatements(string expression, MethodInfo[] methodInfos = null)
         {
             var lexer = new Lexer.Lexer(expression);
             var readOnlyList = lexer.Tokenize();
@@ -38,15 +37,15 @@ namespace Parser.Tests
                 readOnlyList,
                 new Dictionary<string, CompilerType>
                     {{"x", CompilerType.Long}, {"y", CompilerType.Long}, {"z", CompilerType.Long}},
-                new Dictionary<string, FieldInfo>(), 
-                methods ?? new Dictionary<string, (CompilerType[] parameters, CompilerType @return)>(),
+                new Dictionary<string, FieldInfo>(),
+                methodInfos?.ToDictionary(x => x.Name, x => x) ?? new Dictionary<string, MethodInfo>(),
                 true);
             var parser = new Parser.Parser(context);
             var result = parser.Parse();
             return result.Statements;
         }
 
-       private static TestCasesGenerator testCasesGenerator = new TestCasesGenerator();
+        private static TestCasesGenerator testCasesGenerator = new TestCasesGenerator();
 
         public static string[] GeneratedRoslynExpression(string returnExpression, out Func<long, long, long, long> func,
             string[] statements = null)

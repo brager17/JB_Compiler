@@ -25,22 +25,19 @@ namespace Parser.ILCompiler
             public void Log(string log)
             {
                 _logger.Add(log);
-            }
+            }    
 
             public string[] GetLogs => _logger.ToArray();
         }
 
         // todo: убрать введя MethodArgumentExpression
-        private readonly Dictionary<string, MethodInfo> _closedMethods;
         private readonly ILGenerator _ilGenerator;
-
         // for tests
         public Logger logger = new Logger();
         private const string TestedTypeFullName = "RunnerNamespace.Runner";
 
-        public CompileExpressionVisitor(ILGenerator ilGenerator, Dictionary<string, MethodInfo> closedMethods)
+        public CompileExpressionVisitor(ILGenerator ilGenerator)
         {
-            _closedMethods = closedMethods ?? new Dictionary<string, MethodInfo>();
             _ilGenerator = ilGenerator;
         }
 
@@ -236,7 +233,7 @@ namespace Parser.ILCompiler
         }
 
 
-        public override LogicalBinaryExpression VisitLogical(LogicalBinaryExpression logical)
+        protected override LogicalBinaryExpression VisitLogical(LogicalBinaryExpression logical)
         {
             if (Operator.Logical.HasFlag(logical.Operator))
             {
@@ -319,7 +316,7 @@ namespace Parser.ILCompiler
             return logical;
         }
 
-        public override IfElseStatement VisitIfElse(IfElseStatement statement)
+        protected override IfElseStatement VisitIfElse(IfElseStatement statement)
         {
             VisitExpression(statement.Test);
             var @startEnd = _ilGenerator.DefineLabel();
@@ -352,7 +349,7 @@ namespace Parser.ILCompiler
         }
 
 
-        public override BinaryExpression VisitBinary(BinaryExpression binaryExpression)
+        protected override BinaryExpression VisitBinary(BinaryExpression binaryExpression)
         {
             var left = VisitExpression(binaryExpression.Left);
             if (binaryExpression.Left.ReturnType == CompilerType.Int &&
@@ -393,7 +390,7 @@ namespace Parser.ILCompiler
             return binaryExpression;
         }
 
-        public override ReturnStatement VisitReturn(ReturnStatement returnStatement)
+        protected override ReturnStatement VisitReturn(ReturnStatement returnStatement)
         {
             VisitExpression(returnStatement.Returned);
             logger.Log("ret");
@@ -401,7 +398,7 @@ namespace Parser.ILCompiler
             return returnStatement;
         }
 
-        public override AssignmentStatement VisitAssignment(AssignmentStatement assignmentStatement)
+        protected override AssignmentStatement VisitAssignment(AssignmentStatement assignmentStatement)
         {
             VisitExpression(assignmentStatement.Right);
             if (assignmentStatement.Left.TryCast<FieldVariableExpression>(out var field))
@@ -437,7 +434,7 @@ namespace Parser.ILCompiler
             return assignmentStatement;
         }
 
-        public override IExpression VisitUnary(UnaryExpression unaryExpression)
+        protected override IExpression VisitUnary(UnaryExpression unaryExpression)
         {
             switch (unaryExpression.UnaryType)
             {
@@ -549,7 +546,7 @@ namespace Parser.ILCompiler
             }
         }
 
-        public override PrimaryExpression VisitPrimary(PrimaryExpression primaryExpression)
+        protected override PrimaryExpression VisitPrimary(PrimaryExpression primaryExpression)
         {
             switch (primaryExpression.ReturnType)
             {
@@ -572,31 +569,30 @@ namespace Parser.ILCompiler
             return primaryExpression;
         }
 
-        public override MethodCallExpression VisitMethod(MethodCallExpression methodCallExpression)
+        protected override MethodCallExpression VisitMethod(MethodCallExpression methodCallExpression)
         {
-            var method = _closedMethods[methodCallExpression.Name];
-
-            var methodParams = method.GetParameters();
+            var methodParams = methodCallExpression.Parameters.ToArray();
             for (var i = 0;
                 i < methodCallExpression.Parameters.Count;
                 i++)
             {
                 var expression = methodCallExpression.Parameters[i];
                 VisitExpression(expression);
-                if (expression.ReturnType == CompilerType.Int && methodParams[i].ParameterType == typeof(long))
+                if (expression.ReturnType == CompilerType.Int &&
+                    methodParams[i].ParameterInfo.ParameterType == typeof(long))
                 {
                     logger.Log("conv.i8");
                     _ilGenerator.Emit(OpCodes.Conv_I8);
                 }
             }
 
-            var logParams = string.Join(",", method.GetParameters().Select(x => x.ParameterType.ToString()));
-            logger.Log($"call {method.ReturnType} {TestedTypeFullName}::{method.Name}({logParams})");
-            _ilGenerator.Emit(OpCodes.Call, _closedMethods[methodCallExpression.Name]);
+            var logParams = string.Join(",", methodParams.Select(x => x.ParameterInfo.ParameterType.ToString()));
+            logger.Log($"call {methodCallExpression.MethodInfo.ReturnType} {TestedTypeFullName}::{methodCallExpression.Name}({logParams})");
+            _ilGenerator.Emit(OpCodes.Call, methodCallExpression.MethodInfo);
             return methodCallExpression;
         }
 
-        public override MethodArgumentVariableExpression VisitMethodArgument(
+        protected override MethodArgumentVariableExpression VisitMethodArgument(
             MethodArgumentVariableExpression expression)
         {
             if (expression.ByReference)
@@ -633,7 +629,7 @@ namespace Parser.ILCompiler
             return expression;
         }
 
-        public override FieldVariableExpression VisitField(FieldVariableExpression expression)
+        protected override FieldVariableExpression VisitField(FieldVariableExpression expression)
         {
             if (expression.ByReference)
             {
@@ -648,7 +644,7 @@ namespace Parser.ILCompiler
             return expression;
         }
 
-        public override VariableExpression VisitLocalVariable(LocalVariableExpression variable)
+        protected override VariableExpression VisitLocalVariable(LocalVariableExpression variable)
         {
             if (variable.ByReference)
             {
