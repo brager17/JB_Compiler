@@ -10,11 +10,11 @@ using Parser.Parser.Exceptions;
 
 namespace Parser.Parser
 {
-    public class TokenSequence
+    public class SemanticTokenSequence
     {
         private readonly Token[] _tokens;
 
-        public TokenSequence(IReadOnlyList<Token> tokens)
+        public SemanticTokenSequence(IReadOnlyList<Token> tokens)
         {
             _tokens = tokens.ToArray();
         }

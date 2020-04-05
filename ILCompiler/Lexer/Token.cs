@@ -85,7 +85,6 @@ namespace Parser.Lexer
         public static Token LongWord = new Token("long", TokenType.LongWord);
         public static Token BoolWord = new Token("bool", TokenType.BoolWord);
 
-        // todo:: лучше сделать Word, а не Constant
         public static Token IntMaxValue = new Token("int.MaxValue", TokenType.Constant);
         public static Token IntMinValue = new Token("int.MinValue", TokenType.Constant);
         public static Token LongMaxValue = new Token("long.MaxValue", TokenType.Constant);

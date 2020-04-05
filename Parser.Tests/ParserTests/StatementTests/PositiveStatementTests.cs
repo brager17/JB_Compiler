@@ -157,7 +157,7 @@ namespace Parser.Tests.ParserTests.StatementTests
             return 1;
             ";
 
-            var r = TestHelper.GetParseResultStatements(expr, new[] {((Action) Print).Method});
+            var r = TestHelper.GetParseResultStatements(expr, (new[] {((Action) Print).Method}));
             Assert.Equal(ExpressionType.IfElse, r[0].ExpressionType);
             Assert.Equal(3, ((IfElseStatement) r[0]).IfTrue.Statements.Length);
             Assert.Equal(4, ((IfElseStatement) r[0]).Else.Statements.Length);

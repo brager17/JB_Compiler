@@ -13,32 +13,11 @@ namespace Parser.ILCompiler
 {
     public class CompileExpressionVisitor : ExpressionVisitor
     {
-        public Dictionary<string, CompilerType> Variables { get; }
-
-        // todo: собрать логику логгирования в логгере)))
-        // todo вынести все switch cas'ы в отдельный файл 
-
-        public class Logger
-        {
-            private List<string> _logger = new List<string>();
-
-            public void Log(string log)
-            {
-                _logger.Add(log);
-            }    
-
-            public string[] GetLogs => _logger.ToArray();
-        }
-
-        // todo: убрать введя MethodArgumentExpression
-        private readonly ILGenerator _ilGenerator;
-        // for tests
-        public Logger logger = new Logger();
-        private const string TestedTypeFullName = "RunnerNamespace.Runner";
+        private IlEmitter _IlEmitter;
 
         public CompileExpressionVisitor(ILGenerator ilGenerator)
         {
-            _ilGenerator = ilGenerator;
+            _IlEmitter = new IlEmitter(ilGenerator);
         }
 
         public string[] Start(Statement statements)
@@ -52,7 +31,7 @@ namespace Parser.ILCompiler
 
             foreach (var localVariable in localVariables)
             {
-                _ilGenerator.DeclareLocal(localVariable.Value.GetCSharpType());
+                _IlEmitter.DeclareLocal(localVariable.Value);
             }
 
             foreach (var statement in statements.Statements)
@@ -60,16 +39,14 @@ namespace Parser.ILCompiler
                 VisitStatement(statement);
             }
 
-            return logger.GetLogs;
+            return _IlEmitter._logger.GetLogs;
         }
 
         public string[] Start(IExpression expression)
         {
             VisitExpression(expression);
-            logger.Log("ret");
-            _ilGenerator.Emit(OpCodes.Ret);
-
-            return logger.GetLogs;
+            _IlEmitter.Emit(OpCodes.Ret);
+            return _IlEmitter._logger.GetLogs;
         }
 
         public LogicalBinaryExpression PrepareForConditionalIfNeeded(IExpression expression)
@@ -92,6 +69,10 @@ namespace Parser.ILCompiler
             else if (expression.TryCast<PrimaryExpression>(out var primary) && primary.ReturnType == CompilerType.Bool)
             {
                 result = new LogicalBinaryExpression(primary, new PrimaryExpression("true"), Operator.Eq);
+            }
+            else if (expression.TryCast<MethodCallExpression>(out var methodCallExpression))
+            {
+                result = new LogicalBinaryExpression(methodCallExpression, new PrimaryExpression("true"), Operator.Eq);
             }
             else if (!expression.TryCast<LogicalBinaryExpression>(out result))
             {
@@ -146,55 +127,16 @@ namespace Parser.ILCompiler
             ;
         }
 
-        public void Visit1(IExpression expression, bool successLabel, Label label)
+        public void VisitLogicalExpression(IExpression expression, bool successLabel, Label label)
         {
             var prepared = PrepareForConditionalIfNeeded(expression);
             if (Operator.Arithmetic.HasFlag(prepared.Operator))
             {
                 VisitExpression(prepared.Left);
                 VisitExpression(prepared.Right);
-                switch (prepared.Operator)
-                {
-                    case Operator.Less:
-                        logger.Log("clt");
-                        _ilGenerator.Emit(OpCodes.Clt);
-                        break;
-                    case Operator.LessOrEq:
-                        logger.Log("cgt");
-                        _ilGenerator.Emit(OpCodes.Cgt);
-                        logger.Log("ldc.i4.0");
-                        logger.Log("ceq");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_0);
-                        _ilGenerator.Emit(OpCodes.Ceq);
-                        break;
-                    case Operator.Greater:
-                        logger.Log("cgt");
-                        _ilGenerator.Emit(OpCodes.Cgt);
-                        break;
-                    case Operator.GreaterOrEq:
-                        logger.Log("clt");
-                        _ilGenerator.Emit(OpCodes.Clt);
-                        logger.Log("ldc.i4.0");
-                        logger.Log("ceq");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_0);
-                        _ilGenerator.Emit(OpCodes.Ceq);
-                        break;
-                    case Operator.Eq:
-                        logger.Log("ceq");
-                        _ilGenerator.Emit(OpCodes.Ceq);
-                        break;
-                    case Operator.NoEq:
-                        logger.Log("ceq");
-                        _ilGenerator.Emit(OpCodes.Ceq);
-                        logger.Log("ldc.i4.0");
-                        logger.Log("ceq");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_0);
-                        _ilGenerator.Emit(OpCodes.Ceq);
-
-                        break;
-                }
-
-                _ilGenerator.Emit(successLabel ? OpCodes.Brtrue : OpCodes.Brfalse, label);
+                _IlEmitter.EmitLogicalOperator(prepared);
+                if (successLabel) _IlEmitter.BrTrue(label);
+                else _IlEmitter.BrFalse(label);
             }
             else
             {
@@ -220,16 +162,16 @@ namespace Parser.ILCompiler
 
         public void VisitAsOr(LogicalBinaryExpression exp, bool successLabel, Label label)
         {
-            Visit1(exp.Left, successLabel, label);
-            Visit1(exp.Right, successLabel, label);
+            VisitLogicalExpression(exp.Left, successLabel, label);
+            VisitLogicalExpression(exp.Right, successLabel, label);
         }
 
         public void VisitAsAnd(LogicalBinaryExpression exp, bool successLabel, Label label)
         {
-            var afterIf = _ilGenerator.DefineLabel();
-            Visit1(exp.Left, !successLabel, afterIf);
-            Visit1(exp.Right, successLabel, label);
-            _ilGenerator.MarkLabel(afterIf);
+            var afterIf = _IlEmitter.DefineLabel();
+            VisitLogicalExpression(exp.Left, !successLabel, afterIf);
+            VisitLogicalExpression(exp.Right, successLabel, label);
+            _IlEmitter.MarkLabel(afterIf, nameof(afterIf));
         }
 
 
@@ -246,24 +188,24 @@ namespace Parser.ILCompiler
                 switch (logical.Operator)
                 {
                     case Operator.And:
-                        Label @else = _ilGenerator.DefineLabel();
-                        Label @end = _ilGenerator.DefineLabel();
-                        Visit1(left, false, @else);
+                        Label @else = _IlEmitter.DefineLabel();
+                        Label @end = _IlEmitter.DefineLabel();
+                        VisitLogicalExpression(left, false, @else);
                         VisitExpression(right);
-                        _ilGenerator.Emit(OpCodes.Br, end);
-                        _ilGenerator.MarkLabel(@else);
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_0);
-                        _ilGenerator.MarkLabel(end);
+                        _IlEmitter.Br(end, nameof(end));
+                        _IlEmitter.MarkLabel(@else, nameof(@else));
+                        _IlEmitter.Emit(OpCodes.Ldc_I4_0);
+                        _IlEmitter.MarkLabel(end, nameof(end));
                         break;
                     case Operator.Or:
-                        @else = _ilGenerator.DefineLabel();
-                        @end = _ilGenerator.DefineLabel();
-                        Visit1(left, false, @else);
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_1);
-                        _ilGenerator.Emit(OpCodes.Br, end);
-                        _ilGenerator.MarkLabel(@else);
+                        @else = _IlEmitter.DefineLabel();
+                        @end = _IlEmitter.DefineLabel();
+                        VisitLogicalExpression(left, false, @else);
+                        _IlEmitter.Emit(OpCodes.Ldc_I4_1);
+                        _IlEmitter.Br(end, nameof(end));
+                        _IlEmitter.MarkLabel(@else, nameof(@else));
                         VisitExpression(right);
-                        _ilGenerator.MarkLabel(end);
+                        _IlEmitter.MarkLabel(end, nameof(end));
                         break;
                 }
             }
@@ -271,46 +213,7 @@ namespace Parser.ILCompiler
             {
                 VisitExpression(logical.Left);
                 VisitExpression(logical.Right);
-                switch (logical.Operator)
-                {
-                    case Operator.Less:
-                        logger.Log("clt");
-                        _ilGenerator.Emit(OpCodes.Clt);
-                        break;
-                    case Operator.LessOrEq:
-                        logger.Log("cgt");
-                        _ilGenerator.Emit(OpCodes.Cgt);
-                        logger.Log("ldc.i4.0");
-                        logger.Log("ceq");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_0);
-                        _ilGenerator.Emit(OpCodes.Ceq);
-                        break;
-                    case Operator.Greater:
-                        logger.Log("cgt");
-                        _ilGenerator.Emit(OpCodes.Cgt);
-                        break;
-                    case Operator.GreaterOrEq:
-                        logger.Log("clt");
-                        _ilGenerator.Emit(OpCodes.Clt);
-                        logger.Log("ldc.i4.0");
-                        logger.Log("ceq");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_0);
-                        _ilGenerator.Emit(OpCodes.Ceq);
-                        break;
-                    case Operator.Eq:
-                        logger.Log("ceq");
-                        _ilGenerator.Emit(OpCodes.Ceq);
-                        break;
-                    case Operator.NoEq:
-                        logger.Log("ceq");
-                        _ilGenerator.Emit(OpCodes.Ceq);
-                        logger.Log("ldc.i4.0");
-                        logger.Log("ceq");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_0);
-                        _ilGenerator.Emit(OpCodes.Ceq);
-
-                        break;
-                }
+                _IlEmitter.EmitLogicalOperator(logical);
             }
 
             return logical;
@@ -319,29 +222,24 @@ namespace Parser.ILCompiler
         protected override IfElseStatement VisitIfElse(IfElseStatement statement)
         {
             VisitExpression(statement.Test);
-            var @startEnd = _ilGenerator.DefineLabel();
-            var @elseStart = statement.Else == null ? startEnd : _ilGenerator.DefineLabel();
-            logger.Log($"brfalse {nameof(elseStart)}");
-            _ilGenerator.Emit(OpCodes.Brfalse_S, elseStart);
+            var @startEnd = _IlEmitter.DefineLabel();
+            var @elseStart = statement.Else == null ? startEnd : _IlEmitter.DefineLabel();
+            _IlEmitter.BrFalseS(elseStart, nameof(elseStart));
             VisitStatement(statement.IfTrue);
             if (!statement.IfTrue.IsReturnStatement)
             {
-                logger.Log($"br {nameof(startEnd)}");
-                _ilGenerator.Emit(OpCodes.Br, startEnd);
+                _IlEmitter.Br(startEnd, nameof(startEnd));
             }
 
             if (statement.Else != null)
             {
-                logger.Log($"mark {nameof(elseStart)}");
-                _ilGenerator.MarkLabel(elseStart);
+                _IlEmitter.MarkLabel(elseStart, nameof(elseStart));
                 VisitStatement(statement.Else);
-                logger.Log($"mark {nameof(startEnd)}");
-                _ilGenerator.MarkLabel(startEnd);
+                _IlEmitter.MarkLabel(startEnd, nameof(startEnd));
             }
             else
             {
-                logger.Log($"mark {nameof(startEnd)}");
-                _ilGenerator.MarkLabel(startEnd);
+                _IlEmitter.MarkLabel(startEnd, nameof(startEnd));
             }
 
 
@@ -351,50 +249,28 @@ namespace Parser.ILCompiler
 
         protected override BinaryExpression VisitBinary(BinaryExpression binaryExpression)
         {
-            var left = VisitExpression(binaryExpression.Left);
+            VisitExpression(binaryExpression.Left);
             if (binaryExpression.Left.ReturnType == CompilerType.Int &&
                 binaryExpression.Right.ReturnType == CompilerType.Long)
             {
-                logger.Log("conv.i8");
-                _ilGenerator.Emit(OpCodes.Conv_I8);
+                _IlEmitter.Emit(OpCodes.Conv_I8);
             }
 
-            var right = VisitExpression(binaryExpression.Right);
+            VisitExpression(binaryExpression.Right);
             if (binaryExpression.Left.ReturnType == CompilerType.Long &&
                 binaryExpression.Right.ReturnType == CompilerType.Int)
             {
-                logger.Log("conv.i8");
-                _ilGenerator.Emit(OpCodes.Conv_I8);
+                _IlEmitter.Emit(OpCodes.Conv_I8);
             }
 
-            switch (binaryExpression.TokenType)
-            {
-                case TokenType.Plus:
-                    logger.Log("add");
-                    _ilGenerator.Emit(OpCodes.Add);
-                    break;
-                case TokenType.Minus:
-                    logger.Log("sub");
-                    _ilGenerator.Emit(OpCodes.Sub);
-                    break;
-                case TokenType.Star:
-                    logger.Log("mul");
-                    _ilGenerator.Emit(OpCodes.Mul);
-                    break;
-                case TokenType.Slash:
-                    logger.Log("div");
-                    _ilGenerator.Emit(OpCodes.Div);
-                    break;
-            }
-
+            _IlEmitter.LoadOperation(binaryExpression.TokenType);
             return binaryExpression;
         }
 
         protected override ReturnStatement VisitReturn(ReturnStatement returnStatement)
         {
             VisitExpression(returnStatement.Returned);
-            logger.Log("ret");
-            _ilGenerator.Emit(OpCodes.Ret);
+            _IlEmitter.Emit(OpCodes.Ret);
             return returnStatement;
         }
 
@@ -403,32 +279,15 @@ namespace Parser.ILCompiler
             VisitExpression(assignmentStatement.Right);
             if (assignmentStatement.Left.TryCast<FieldVariableExpression>(out var field))
             {
-                _ilGenerator.Emit(OpCodes.Stsfld, field.FieldInfo);
+                _IlEmitter.SetField(field);
             }
             else if (assignmentStatement.Left.TryCast<LocalVariableExpression>(out var localVariableExpression))
             {
-                switch (localVariableExpression.Index)
-                {
-                    case 0:
-                        _ilGenerator.Emit(OpCodes.Stloc_0);
-                        break;
-                    case 1:
-                        _ilGenerator.Emit(OpCodes.Stloc_1);
-                        break;
-                    case 2:
-                        _ilGenerator.Emit(OpCodes.Stloc_2);
-                        break;
-                    case 3:
-                        _ilGenerator.Emit(OpCodes.Stloc_3);
-                        break;
-                    default:
-                        _ilGenerator.Emit(OpCodes.Stloc, localVariableExpression.Name);
-                        break;
-                }
+                _IlEmitter.SetLocalVariable(localVariableExpression);
             }
             else if (assignmentStatement.Left.TryCast<MethodArgumentVariableExpression>(out var methodArg))
             {
-                _ilGenerator.Emit(OpCodes.Starg_S, (byte) methodArg.Index);
+                _IlEmitter.SetArg(methodArg);
             }
 
             return assignmentStatement;
@@ -449,27 +308,23 @@ namespace Parser.ILCompiler
                         if (pr.Value == longMinValue[1..])
                         {
                             expression = pr;
-                            logger.Log($"ldc.i8 {longMinValue}");
-                            _ilGenerator.Emit(OpCodes.Ldc_I8, long.Parse(longMinValue));
+                            _IlEmitter.LdcI8(long.Parse(longMinValue));
                         }
                         else if (pr.Value == intMinValue[1..])
                         {
                             expression = pr;
-                            logger.Log($"ldc.i4 {intMinValue}");
-                            _ilGenerator.Emit(OpCodes.Ldc_I4, int.Parse(intMinValue));
+                            _IlEmitter.LdcI4(int.Parse(intMinValue));
                         }
                         else
                         {
                             expression = VisitExpression(unaryExpression.Expression);
-                            logger.Log("neg");
-                            _ilGenerator.Emit(OpCodes.Neg);
+                            _IlEmitter.Emit(OpCodes.Neg);
                         }
                     }
                     else
                     {
                         expression = VisitExpression(unaryExpression.Expression);
-                        logger.Log("neg");
-                        _ilGenerator.Emit(OpCodes.Neg);
+                        _IlEmitter.Emit(OpCodes.Neg);
                     }
 
                     return new UnaryExpression(expression, UnaryType.Negative);
@@ -479,10 +334,8 @@ namespace Parser.ILCompiler
                 {
                     var expression = VisitExpression(unaryExpression.Expression);
 
-                    logger.Log("Ldc.I4.0");
-                    _ilGenerator.Emit(OpCodes.Ldc_I4_0);
-                    logger.Log("ceq");
-                    _ilGenerator.Emit(OpCodes.Ceq);
+                    _IlEmitter.Emit(OpCodes.Ldc_I4_0);
+                    _IlEmitter.Emit(OpCodes.Ceq);
                     return new UnaryExpression(expression, UnaryType.Not);
                 }
                 default:
@@ -492,58 +345,7 @@ namespace Parser.ILCompiler
 
         private void IntEmit(int value)
         {
-            switch (value)
-            {
-                case 0:
-                    logger.Log("ldc.i4.0");
-                    _ilGenerator.Emit(OpCodes.Ldc_I4_0);
-                    break;
-                case 1:
-                    logger.Log("ldc.i4.1");
-                    _ilGenerator.Emit(OpCodes.Ldc_I4_1);
-                    break;
-                case 2:
-                    logger.Log("ldc.i4.2");
-                    _ilGenerator.Emit(OpCodes.Ldc_I4_2);
-                    break;
-                case 3:
-                    logger.Log("ldc.i4.3");
-                    _ilGenerator.Emit(OpCodes.Ldc_I4_3);
-                    break;
-                case 4:
-                    logger.Log("ldc.i4.4");
-                    _ilGenerator.Emit(OpCodes.Ldc_I4_4);
-                    break;
-                case 5:
-                    logger.Log("ldc.i4.5");
-                    _ilGenerator.Emit(OpCodes.Ldc_I4_5);
-                    break;
-                case 6:
-                    logger.Log("ldc.i4.6");
-                    _ilGenerator.Emit(OpCodes.Ldc_I4_6);
-                    break;
-                case 7:
-                    logger.Log("ldc.i4.7");
-                    _ilGenerator.Emit(OpCodes.Ldc_I4_7);
-                    break;
-                case 8:
-                    logger.Log("ldc.i4.8");
-                    _ilGenerator.Emit(OpCodes.Ldc_I4_8);
-                    break;
-                default:
-                    if (value > -128 && value < 128)
-                    {
-                        logger.Log($"ldc.i4.s {value}");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_S, (sbyte) value);
-                    }
-                    else
-                    {
-                        logger.Log($"ldc.i4 {value}");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4, value);
-                    }
-
-                    break;
-            }
+            _IlEmitter.LoadInt(value);
         }
 
         protected override PrimaryExpression VisitPrimary(PrimaryExpression primaryExpression)
@@ -551,16 +353,14 @@ namespace Parser.ILCompiler
             switch (primaryExpression.ReturnType)
             {
                 case CompilerType.Long:
-                    logger.Log($"ldc.i8 {primaryExpression.AsLong()}");
-                    _ilGenerator.Emit(OpCodes.Ldc_I8, primaryExpression.AsLong());
+                    _IlEmitter.LdcI8(primaryExpression.AsLong());
                     break;
                 case CompilerType.Int:
-                    IntEmit(primaryExpression.AsInt());
+                    _IlEmitter.LoadInt(primaryExpression.AsInt());
                     break;
                 case CompilerType.Bool:
                     var value = primaryExpression.AsBool();
-                    logger.Log(value ? "ldc.i4.1" : "ldc.i4.0");
-                    _ilGenerator.Emit(value ? OpCodes.Ldc_I4_1 : OpCodes.Ldc_I4_0);
+                    _IlEmitter.Emit(value ? OpCodes.Ldc_I4_1 : OpCodes.Ldc_I4_0);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
@@ -581,14 +381,11 @@ namespace Parser.ILCompiler
                 if (expression.ReturnType == CompilerType.Int &&
                     methodParams[i].ParameterInfo.ParameterType == typeof(long))
                 {
-                    logger.Log("conv.i8");
-                    _ilGenerator.Emit(OpCodes.Conv_I8);
+                    _IlEmitter.Emit(OpCodes.Conv_I8);
                 }
             }
 
-            var logParams = string.Join(",", methodParams.Select(x => x.ParameterInfo.ParameterType.ToString()));
-            logger.Log($"call {methodCallExpression.MethodInfo.ReturnType} {TestedTypeFullName}::{methodCallExpression.Name}({logParams})");
-            _ilGenerator.Emit(OpCodes.Call, methodCallExpression.MethodInfo);
+            _IlEmitter.MethodCall(methodCallExpression);
             return methodCallExpression;
         }
 
@@ -597,34 +394,11 @@ namespace Parser.ILCompiler
         {
             if (expression.ByReference)
             {
-                logger.Log($"ldarga.s {expression.Name}");
-                _ilGenerator.Emit(OpCodes.Ldarga_S, (byte) expression.Index);
+                _IlEmitter.LoadArgByReference(expression);
                 return expression;
             }
 
-            switch (expression.Index)
-            {
-                case 0:
-                    logger.Log($"ldarg.0");
-                    _ilGenerator.Emit(OpCodes.Ldarg_0);
-                    break;
-                case 1:
-                    logger.Log($"ldarg.1");
-                    _ilGenerator.Emit(OpCodes.Ldarg_1);
-                    break;
-                case 2:
-                    logger.Log($"ldarg.2");
-                    _ilGenerator.Emit(OpCodes.Ldarg_2);
-                    break;
-                case 3:
-                    logger.Log($"ldarg.3");
-                    _ilGenerator.Emit(OpCodes.Ldarg_3);
-                    break;
-                default:
-                    logger.Log($"ldarg.s {expression.Name}");
-                    _ilGenerator.Emit(OpCodes.Ldarg_S, expression.Name);
-                    break;
-            }
+            _IlEmitter.LoadArg(expression);
 
             return expression;
         }
@@ -633,14 +407,11 @@ namespace Parser.ILCompiler
         {
             if (expression.ByReference)
             {
-                logger.Log($"ldsflda {expression.Name}");
-                _ilGenerator.Emit(OpCodes.Ldsflda, expression.FieldInfo);
+                _IlEmitter.ldsfldByReference(expression);
                 return expression;
             }
 
-
-            logger.Log($"ldsfld {expression.FieldInfo.FieldType} {TestedTypeFullName}::{expression.Name}");
-            _ilGenerator.Emit(OpCodes.Ldsfld, expression.FieldInfo);
+            _IlEmitter.ldsfld(expression);
             return expression;
         }
 
@@ -648,35 +419,11 @@ namespace Parser.ILCompiler
         {
             if (variable.ByReference)
             {
-                logger.Log($"ldloca.s {variable.Index}");
-                _ilGenerator.Emit(OpCodes.Ldloca_S, variable.Index);
+                _IlEmitter.LdLocByReference(variable.Index);
                 return variable;
             }
 
-            switch (variable.Index)
-            {
-                case 0:
-                    logger.Log($"ldloc.0");
-                    _ilGenerator.Emit(OpCodes.Ldloc_0);
-                    break;
-                case 1:
-                    logger.Log($"ldloc.1");
-                    _ilGenerator.Emit(OpCodes.Ldloc_1);
-                    break;
-                case 2:
-                    logger.Log($"ldloc.2");
-                    _ilGenerator.Emit(OpCodes.Ldloc_2);
-                    break;
-                case 3:
-                    logger.Log($"ldloc.3");
-                    _ilGenerator.Emit(OpCodes.Ldloc_3);
-                    break;
-                default:
-                    logger.Log($"ldloc.s {variable.Index}");
-                    _ilGenerator.Emit(OpCodes.Ldloc_S, variable.Index);
-                    break;
-            }
-
+            _IlEmitter.LdLoc(variable.Index);
             return variable;
         }
     }

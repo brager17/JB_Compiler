@@ -11,8 +11,6 @@ namespace Bumper
     {
         static void BumpTest()
         {
-            Expression<Func<int, int>> e = x => x;
-            e.Compile();
             var generator = new TestCasesGenerator();
             var expressions = generator.GenerateRandomExpression(1000);
             using var @out = new StreamWriter("output.txt");

@@ -59,7 +59,6 @@ namespace Parser.Lexer
 
         public IReadOnlyList<Token> Tokenize()
         {
-            // todo pattern mathicg must be better
             for (var i = 0; i < _program.Length; i++)
             {
                 if (_program[i] == ' ') continue;
@@ -214,7 +213,6 @@ namespace Parser.Lexer
 
             var methodNameToString = methodNameSb.ToString();
             var parametersToString = parametersStringBuilder.ToString();
-            // todo should improve regex
             var regexMethod = new Regex(@"(?'methodName'[\S]+)\([\s*\S,]*\)");
             var match = regexMethod.Match($"{methodNameToString}({parametersToString})");
             if (match.Success)

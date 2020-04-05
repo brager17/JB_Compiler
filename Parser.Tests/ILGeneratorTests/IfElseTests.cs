@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using JetBrains.Annotations;
 using Parser.Tests.ILGeneratorTests.MethodTests;
 using Xunit;
 using Xunit.Abstractions;
@@ -303,12 +304,12 @@ namespace Parser.Tests.ILGeneratorTests
             var expr = $@"
             if(x {oneCmp} 1 {oneLog} y {twoCmp} 1 {twoLogical} z {threeCmp} 1){{return 1;}}
             else {{return 2;}}";
-        
+
             _testOutputHelper.WriteLine(expr);
             var actual = Compiler.CompileStatement(expr, out var func);
-        
+
             var expected = TestHelper.GeneratedRoslynMethod(expr, out var expectedFunc);
-        
+
             Assert.Equal(expectedFunc(0, 0, 0), func(0, 0, 0));
             Assert.Equal(expectedFunc(0, 1, 0), func(0, 1, 0));
             Assert.Equal(expectedFunc(0, 2, 0), func(0, 2, 0));
@@ -318,7 +319,7 @@ namespace Parser.Tests.ILGeneratorTests
             Assert.Equal(expectedFunc(2, 0, 0), func(2, 0, 0));
             Assert.Equal(expectedFunc(2, 1, 0), func(2, 1, 0));
             Assert.Equal(expectedFunc(2, 2, 0), func(2, 2, 0));
-        
+
             Assert.Equal(expectedFunc(0, 0, 1), func(0, 0, 1));
             Assert.Equal(expectedFunc(0, 1, 1), func(0, 1, 1));
             Assert.Equal(expectedFunc(0, 2, 1), func(0, 2, 1));
@@ -328,7 +329,7 @@ namespace Parser.Tests.ILGeneratorTests
             Assert.Equal(expectedFunc(2, 0, 1), func(2, 0, 1));
             Assert.Equal(expectedFunc(2, 1, 1), func(2, 1, 1));
             Assert.Equal(expectedFunc(2, 2, 1), func(2, 2, 1));
-        
+
             Assert.Equal(expectedFunc(0, 0, 2), func(0, 0, 2));
             Assert.Equal(expectedFunc(0, 1, 2), func(0, 1, 2));
             Assert.Equal(expectedFunc(0, 2, 2), func(0, 2, 2));
@@ -568,6 +569,28 @@ namespace Parser.Tests.ILGeneratorTests
             Assert.Equal(0, f(0, 0, 0));
         }
 
-      
+
+        [UsedImplicitly]
+        public static bool MethodBool(ref long x)
+        {
+            x++;
+            return true;
+        }
+
+        [Fact]
+        public void Parse__LogicalOperators__NotCalculatedIfTheResultIsAlreadyKnown()
+        {
+            var func = Compiler.CompileStatement(
+                "if(true || MethodBool(ref x)){return x;}else{return x;}",
+                GetType());
+
+            Assert.Equal(1,func(1, 1, 1));
+
+            func = Compiler.CompileStatement(
+                "if(false && MethodBool(ref x)){return x;}else{return x;}",
+                GetType());
+         
+            Assert.Equal(1,func(1, 1, 1));
+        }
     }
 }

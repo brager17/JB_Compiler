@@ -43,12 +43,12 @@ namespace Parser.Parser
         private readonly bool _constantFolding;
         private readonly Dictionary<string, CompilerType> _parameters;
         private readonly Dictionary<string, CompilerType> _localVariables = new Dictionary<string, CompilerType>();
-        private readonly TokenSequence _tokenSequence;
+        private readonly SemanticTokenSequence _semanticTokenSeq;
         private readonly Dictionary<string, MethodInfo> _closureMethods;
 
         public Parser(ParserContext context)
         {
-            _tokenSequence = new TokenSequence(context.Tokens);
+            _semanticTokenSeq = new SemanticTokenSequence(context.Tokens);
             _parameters = context.MethodParameters;
             _closedFields = context.ClosureFields;
             _constantFolding = context.ConstantFolding;
@@ -58,7 +58,7 @@ namespace Parser.Parser
         public Statement Parse()
         {
             var list = new List<IStatement>();
-            while (!_tokenSequence.IsEmpty)
+            while (!_semanticTokenSeq.IsEmpty)
             {
                 list.Add(Statement());
             }
@@ -76,7 +76,7 @@ namespace Parser.Parser
         public IExpression ParseExpression()
         {
             var expression = Expression();
-            if (!_tokenSequence.IsEmpty)
+            if (!_semanticTokenSeq.IsEmpty)
             {
                 throw new CompileException("Expression is incorrect");
             }
@@ -87,37 +87,35 @@ namespace Parser.Parser
         private IStatement AssignmentStatement()
         {
             VariableExpression varExpression = null;
-            if (_tokenSequence.Current?.Type == TokenType.BoolWord ||
-                _tokenSequence.Current?.Type == TokenType.IntWord ||
-                _tokenSequence.Current?.Type == TokenType.LongWord)
+            if(_semanticTokenSeq.IsTypeKeyWord())
             {
-                var keywordType = _tokenSequence.Current.Type;
-                _tokenSequence.Step();
+                var keywordType = _semanticTokenSeq.Current.Type;
+                _semanticTokenSeq.Step();
 
                 var type = keywordType.TokenToCompilerType();
 
-                if (_localVariables.TryGetValue(_tokenSequence.Current.Value, out _))
+                if (_localVariables.TryGetValue(_semanticTokenSeq.Current.Value, out _))
                 {
                     throw new CompileException(
-                        $"Variable with name '{_tokenSequence.Current.Value}' is already declared. Use ");
+                        $"Variable with name '{_semanticTokenSeq.Current.Value}' is already declared. Use ");
                 }
 
-                if (_parameters.ContainsKey(_tokenSequence.Current.Value))
+                if (_parameters.ContainsKey(_semanticTokenSeq.Current.Value))
                 {
                     throw new CompileException(
-                        $"A local or parameter named '{_tokenSequence.Current.Value}' cannot be declared in this scope because that name is used in an enclosing local scope to define a local or parameter");
+                        $"A local or parameter named '{_semanticTokenSeq.Current.Value}' cannot be declared in this scope because that name is used in an enclosing local scope to define a local or parameter");
                 }
 
-                varExpression = new LocalVariableExpression(_tokenSequence.Current.Value, type, _localVariables.Count);
+                varExpression = new LocalVariableExpression(_semanticTokenSeq.Current.Value, type, _localVariables.Count);
                 _localVariables.Add(varExpression.Name, varExpression.ReturnType);
-                _tokenSequence.Step(); // variable name
+                _semanticTokenSeq.Step(); // variable name
             }
-            else if (_tokenSequence.Current?.Type == TokenType.Variable)
+            else if (_semanticTokenSeq.Current?.Type == TokenType.Variable)
             {
-                varExpression = GetVariable(_tokenSequence.CurrentWithStep());
+                varExpression = GetVariable(_semanticTokenSeq.CurrentWithStep());
             }
 
-            _tokenSequence.Step(); // assignment sign
+            _semanticTokenSeq.Step(); // assignment sign
             var expression = Expression();
 
             if (varExpression.CheckCannotImplicitConversion(expression))
@@ -125,41 +123,41 @@ namespace Parser.Parser
                 throw new CompileException("Cannot implicitly convert type 'long ' to int");
             }
 
-            _tokenSequence.ThrowIfNotMatched(TokenType.Semicolon, "Assignment statement must be ended by semicolon");
+            _semanticTokenSeq.ThrowIfNotMatched(TokenType.Semicolon, "Assignment statement must be ended by semicolon");
 
             return new AssignmentStatement(varExpression, expression);
         }
 
         public IStatement Statement()
         {
-            if (_tokenSequence.Get(2) == Token.Assignment || _tokenSequence.Get(1) == Token.Assignment)
+            if (_semanticTokenSeq.Get(2) == Token.Assignment || _semanticTokenSeq.Get(1) == Token.Assignment)
             {
                 return AssignmentStatement();
             }
 
-            if (_tokenSequence.IsTypeKeyWord())
+            if (_semanticTokenSeq.IsTypeKeyWord())
             {
-                _tokenSequence.Throw("You cannot leave a variable uninitialized");
+                _semanticTokenSeq.Throw("You cannot leave a variable uninitialized");
             }
 
-            if (_tokenSequence.Current?.Type == TokenType.ReturnWord)
+            if (_semanticTokenSeq.Current?.Type == TokenType.ReturnWord)
             {
-                _tokenSequence.Step();
+                _semanticTokenSeq.Step();
                 var expression = Expression();
-                _tokenSequence.ThrowIfNotMatched(TokenType.Semicolon, "Return must be ended by semicolon");
+                _semanticTokenSeq.ThrowIfNotMatched(TokenType.Semicolon, "Return must be ended by semicolon");
                 return new ReturnStatement(expression);
             }
 
-            if (_tokenSequence.Current?.Type == TokenType.IfWord)
+            if (_semanticTokenSeq.Current?.Type == TokenType.IfWord)
             {
                 return IfElseStatement();
             }
 
             // todo: использовать другую проверку, что это метод
-            if (_tokenSequence.Current?.Type == TokenType.Word && _tokenSequence.Next.Type == TokenType.LeftParent)
+            if (_semanticTokenSeq.Current?.Type == TokenType.Word && _semanticTokenSeq.Next.Type == TokenType.LeftParent)
             {
                 var methodCall = MethodCallExpression();
-                _tokenSequence.ThrowIfNotMatched(TokenType.Semicolon, "Missing semicolon");
+                _semanticTokenSeq.ThrowIfNotMatched(TokenType.Semicolon, "Missing semicolon");
                 return new VoidMethodCallStatement(methodCall);
             }
 
@@ -168,38 +166,38 @@ namespace Parser.Parser
 
         public IfElseStatement IfElseStatement()
         {
-            _tokenSequence.Step();
-            _tokenSequence.ThrowIfNotMatched(TokenType.LeftParent, "Missing Left Parent");
+            _semanticTokenSeq.Step();
+            _semanticTokenSeq.ThrowIfNotMatched(TokenType.LeftParent, "Missing Left Parent");
             var test = Expression();
 
-            _tokenSequence.ThrowIfNotMatched(TokenType.RightParent, "Missing Right Parent");
-            _tokenSequence.ThrowIfNotMatched(TokenType.LeftBrace, "Missing left brace");
+            _semanticTokenSeq.ThrowIfNotMatched(TokenType.RightParent, "Missing Right Parent");
+            _semanticTokenSeq.ThrowIfNotMatched(TokenType.LeftBrace, "Missing left brace");
 
             var ifStatements = new List<IStatement>();
-            while (_tokenSequence.Current.Type != TokenType.RightBrace)
+            while (_semanticTokenSeq.Current.Type != TokenType.RightBrace)
             {
                 ifStatements.Add(Statement());
             }
 
 
-            if (_tokenSequence.Next?.Type != TokenType.ElseWord)
+            if (_semanticTokenSeq.Next?.Type != TokenType.ElseWord)
             {
-                _tokenSequence.Step();
+                _semanticTokenSeq.Step();
                 return new IfElseStatement(test, new Statement(ifStatements.ToArray()));
             }
 
-            _tokenSequence.Step();
-            _tokenSequence.Step();
+            _semanticTokenSeq.Step();
+            _semanticTokenSeq.Step();
 
-            _tokenSequence.ThrowIfNotMatched(TokenType.LeftBrace, "Missing left brace");
+            _semanticTokenSeq.ThrowIfNotMatched(TokenType.LeftBrace, "Missing left brace");
 
             var elseStatements = new List<IStatement>();
-            while (_tokenSequence.Current.Type != TokenType.RightBrace)
+            while (_semanticTokenSeq.Current.Type != TokenType.RightBrace)
             {
                 elseStatements.Add(Statement());
             }
 
-            _tokenSequence.ThrowIfNotMatched(TokenType.RightBrace, "Missing right brace");
+            _semanticTokenSeq.ThrowIfNotMatched(TokenType.RightBrace, "Missing right brace");
 
             return new IfElseStatement(test,
                 new Statement(ifStatements.ToArray()),
@@ -216,9 +214,9 @@ namespace Parser.Parser
         public IExpression OrLogical()
         {
             var result = AndLogical();
-            while (_tokenSequence.Current?.Type == TokenType.Or)
+            while (_semanticTokenSeq.Current?.Type == TokenType.Or)
             {
-                _tokenSequence.Step();
+                _semanticTokenSeq.Step();
                 result = new LogicalBinaryExpression(result, AndLogical(), Operator.Or);
             }
 
@@ -228,9 +226,9 @@ namespace Parser.Parser
         public IExpression AndLogical()
         {
             var result = EqualsNoEquals();
-            while (_tokenSequence.Current?.Type == TokenType.And)
+            while (_semanticTokenSeq.Current?.Type == TokenType.And)
             {
-                _tokenSequence.Step();
+                _semanticTokenSeq.Step();
                 result = new LogicalBinaryExpression(result, EqualsNoEquals(), Operator.And);
             }
 
@@ -240,17 +238,17 @@ namespace Parser.Parser
         public IExpression EqualsNoEquals()
         {
             var result = Logical();
-            while (_tokenSequence.Current?.Type == TokenType.EqualTo ||
-                   _tokenSequence.Current?.Type == TokenType.NotEqualTo)
+            while (_semanticTokenSeq.Current?.Type == TokenType.EqualTo ||
+                   _semanticTokenSeq.Current?.Type == TokenType.NotEqualTo)
             {
-                switch (_tokenSequence.Current?.Type)
+                switch (_semanticTokenSeq.Current?.Type)
                 {
                     case TokenType.EqualTo:
-                        _tokenSequence.Step();
+                        _semanticTokenSeq.Step();
                         result = new LogicalBinaryExpression(result, Logical(), Operator.Eq);
                         break;
                     case TokenType.NotEqualTo:
-                        _tokenSequence.Step();
+                        _semanticTokenSeq.Step();
                         result = new LogicalBinaryExpression(result, Logical(), Operator.NoEq);
                         break;
                 }
@@ -262,19 +260,19 @@ namespace Parser.Parser
         public IExpression Logical()
         {
             var left = Additive();
-            switch (_tokenSequence.Current?.Type)
+            switch (_semanticTokenSeq.Current?.Type)
             {
                 case TokenType.LessThan:
-                    _tokenSequence.Step();
+                    _semanticTokenSeq.Step();
                     return new LogicalBinaryExpression(left, Additive(), Operator.Less);
                 case TokenType.LessThanOrEquals:
-                    _tokenSequence.Step();
+                    _semanticTokenSeq.Step();
                     return new LogicalBinaryExpression(left, Additive(), Operator.LessOrEq);
                 case TokenType.GreaterThan:
-                    _tokenSequence.Step();
+                    _semanticTokenSeq.Step();
                     return new LogicalBinaryExpression(left, Additive(), Operator.Greater);
                 case TokenType.GreaterThanOrEquals:
-                    _tokenSequence.Step();
+                    _semanticTokenSeq.Step();
                     return new LogicalBinaryExpression(left, Additive(), Operator.GreaterOrEq);
                 default:
                     return left;
@@ -285,13 +283,13 @@ namespace Parser.Parser
         public IExpression Additive()
         {
             var result = Multiplicative();
-            CheckValidArithmeticOperation(_tokenSequence.Current?.Type, result);
+            CheckValidArithmeticOperation(_semanticTokenSeq.Current?.Type, result);
             // x + y + (x*y+x) = (x+y)+(x*y+x), not x+(y+(x*y+x)), it is important, because c# works this way
             while (true)
             {
-                if (_tokenSequence.Current?.Type == TokenType.Plus)
+                if (_semanticTokenSeq.Current?.Type == TokenType.Plus)
                 {
-                    _tokenSequence.Step();
+                    _semanticTokenSeq.Step();
                     var right = Multiplicative();
                     CheckValidArithmeticOperation(TokenType.Plus, right);
                     if (TryFold(result, out var leftValue, out var leftType) &&
@@ -307,9 +305,9 @@ namespace Parser.Parser
                     continue;
                 }
 
-                if (_tokenSequence.Current?.Type == TokenType.Minus)
+                if (_semanticTokenSeq.Current?.Type == TokenType.Minus)
                 {
-                    _tokenSequence.Step();
+                    _semanticTokenSeq.Step();
                     var right = Multiplicative();
                     CheckValidArithmeticOperation(TokenType.Minus, right);
                     if (TryFold(result, out var leftValue, out var leftType) &&
@@ -428,20 +426,20 @@ namespace Parser.Parser
                 (type == TokenType.Star || type == TokenType.Slash || type == TokenType.Minus ||
                  type == TokenType.Plus))
             {
-                _tokenSequence.Throw("Invalid arithmetic operation");
+                _semanticTokenSeq.Throw("Invalid arithmetic operation");
             }
         }
 
         public IExpression Multiplicative()
         {
             var result = Unary();
-            CheckValidArithmeticOperation(_tokenSequence.Current?.Type, result);
+            CheckValidArithmeticOperation(_semanticTokenSeq.Current?.Type, result);
             // x*y*z = ((x*y)*z) not (x*(y*z)) , it is important, because c# works this way
             while (true)
             {
-                if (_tokenSequence.Current?.Type == TokenType.Star)
+                if (_semanticTokenSeq.Current?.Type == TokenType.Star)
                 {
-                    _tokenSequence.Step();
+                    _semanticTokenSeq.Step();
                     var right = Unary();
                     CheckValidArithmeticOperation(TokenType.Star, right);
                     if (TryFold(result, out var leftValue, out var leftType) &&
@@ -479,9 +477,9 @@ namespace Parser.Parser
                     continue;
                 }
 
-                if (_tokenSequence.Current?.Type == TokenType.Slash)
+                if (_semanticTokenSeq.Current?.Type == TokenType.Slash)
                 {
-                    _tokenSequence.Step();
+                    _semanticTokenSeq.Step();
                     var right = Unary();
                     CheckValidArithmeticOperation(TokenType.Slash, right);
                     if (TryFold(result, out var leftValue, out var leftType) &&
@@ -517,14 +515,14 @@ namespace Parser.Parser
 
         public IExpression Unary()
         {
-            if (_tokenSequence.Current.Type == TokenType.Minus)
+            if (_semanticTokenSeq.Current.Type == TokenType.Minus)
             {
-                if (_tokenSequence.Get(1).Type == TokenType.Constant)
+                if (_semanticTokenSeq.Get(1).Type == TokenType.Constant)
                 {
                     return new UnaryExpression(ParseConstant(), UnaryType.Negative);
                 }
 
-                _tokenSequence.Step();
+                _semanticTokenSeq.Step();
 
                 var expression = Primary();
                 if (_constantFolding && expression.TryCast<UnaryExpression>(out var unary) &&
@@ -537,10 +535,10 @@ namespace Parser.Parser
                 return new UnaryExpression(expression, UnaryType.Negative);
             }
 
-            if (_tokenSequence.Current.Type == TokenType.Not)
+            if (_semanticTokenSeq.Current.Type == TokenType.Not)
             {
-                _tokenSequence.Step();
-                var afterToken = _tokenSequence.CurrentWithStep();
+                _semanticTokenSeq.Step();
+                var afterToken = _semanticTokenSeq.CurrentWithStep();
                 if (afterToken.Type == TokenType.Variable)
                 {
                     var variable = GetVariable(afterToken);
@@ -560,7 +558,7 @@ namespace Parser.Parser
 
                 var expression = Expression();
 
-                var closeParen = _tokenSequence.CurrentWithStep();
+                var closeParen = _semanticTokenSeq.CurrentWithStep();
                 if (closeParen.Type != TokenType.RightParent)
                 {
                     throw new CompileException("Должна стоять закрывающая скобка");
@@ -574,22 +572,22 @@ namespace Parser.Parser
 
         private IExpression ParseConstant()
         {
-            if (_tokenSequence.Current.Type == TokenType.Minus)
+            if (_semanticTokenSeq.Current.Type == TokenType.Minus)
             {
-                _tokenSequence.Step();
-                var stringNumber = _tokenSequence.Current.Value;
-                if (PrimaryExpression.GetPrimaryType('-' + _tokenSequence.Current.Value, out var compilerType))
+                _semanticTokenSeq.Step();
+                var stringNumber = _semanticTokenSeq.Current.Value;
+                if (PrimaryExpression.GetPrimaryType('-' + _semanticTokenSeq.Current.Value, out var compilerType))
                 {
-                    _tokenSequence.Step();
+                    _semanticTokenSeq.Step();
                     return new PrimaryExpression(stringNumber, compilerType);
                 }
             }
             else
             {
-                var stringNumber = _tokenSequence.Current.Value;
-                if (PrimaryExpression.GetPrimaryType(_tokenSequence.Current.Value, out var compilerType))
+                var stringNumber = _semanticTokenSeq.Current.Value;
+                if (PrimaryExpression.GetPrimaryType(_semanticTokenSeq.Current.Value, out var compilerType))
                 {
-                    _tokenSequence.Step();
+                    _semanticTokenSeq.Step();
                     return new PrimaryExpression(stringNumber, compilerType);
                 }
             }
@@ -618,58 +616,58 @@ namespace Parser.Parser
 
 
             throw new ArgumentOutOfRangeException(
-                $"Variable with name '{_tokenSequence.Current.Value}' is not declared");
+                $"Variable with name '{_semanticTokenSeq.Current.Value}' is not declared");
             // var variableType = GetVariableType(token);
             // return new LocalVariableExpression(token.Value, variableType, byReference);
         }
 
         private IExpression Primary()
         {
-            if (_tokenSequence.Current.Type == TokenType.Constant)
+            if (_semanticTokenSeq.Current.Type == TokenType.Constant)
             {
                 return ParseConstant();
             }
 
-            if (_tokenSequence.Current?.Type == TokenType.Variable)
+            if (_semanticTokenSeq.Current?.Type == TokenType.Variable)
             {
-                var varToken = _tokenSequence.Current;
-                _tokenSequence.Step();
+                var varToken = _semanticTokenSeq.Current;
+                _semanticTokenSeq.Step();
 
                 return GetVariable(varToken);
             }
 
-            if (_tokenSequence.Current?.Type == TokenType.RefWord)
+            if (_semanticTokenSeq.Current?.Type == TokenType.RefWord)
             {
-                if (_tokenSequence.Next.Type != TokenType.Variable)
+                if (_semanticTokenSeq.Next.Type != TokenType.Variable)
                 {
                     throw new CompileException("ref keyword must using only with variables or method args");
                 }
 
-                _tokenSequence.Step();
-                var varToken = _tokenSequence.CurrentWithStep();
+                _semanticTokenSeq.Step();
+                var varToken = _semanticTokenSeq.CurrentWithStep();
                 var variable = GetVariable(varToken, true);
                 return variable;
             }
 
-            if (_tokenSequence.Current?.Type == TokenType.LeftParent)
+            if (_semanticTokenSeq.Current?.Type == TokenType.LeftParent)
             {
-                _tokenSequence.Step();
+                _semanticTokenSeq.Step();
                 var expression = Expression();
-                if (_tokenSequence.Current?.Type != TokenType.RightParent)
+                if (_semanticTokenSeq.Current?.Type != TokenType.RightParent)
                 {
                     throw new CompileException("Count of opening brackets must be equals count of closing brackets");
                 }
 
-                _tokenSequence.Step();
+                _semanticTokenSeq.Step();
                 return expression;
             }
 
-            if (_tokenSequence.Current?.Type == TokenType.RightParent)
+            if (_semanticTokenSeq.Current?.Type == TokenType.RightParent)
             {
                 throw new CompileException("Amount of opening brackets have to equals amount of closing brackets");
             }
 
-            if (_tokenSequence.Current?.Type == TokenType.Word)
+            if (_semanticTokenSeq.Current?.Type == TokenType.Word)
             {
                 return MethodCallExpression();
             }
@@ -679,24 +677,24 @@ namespace Parser.Parser
 
         private MethodCallExpression MethodCallExpression()
         {
-            var methodName = _tokenSequence.Current.Value;
+            var methodName = _semanticTokenSeq.Current.Value;
             if (!_closureMethods.TryGetValue(methodName, out var methodInfo))
             {
                 throw new CompileException(
                     $"Could not find method \"{methodName}\", use static methods of the class, please ");
             }
 
-            _tokenSequence.Step();
-            if (_tokenSequence.Current.Type != TokenType.LeftParent)
+            _semanticTokenSeq.Step();
+            if (_semanticTokenSeq.Current.Type != TokenType.LeftParent)
             {
                 throw new CompileException("Opening bracket must be after method name");
             }
 
-            _tokenSequence.Step();
+            _semanticTokenSeq.Step();
             var @params = new List<MethodCallParameterExpression>();
             int i = 0;
             var methodParameters = methodInfo.GetParameters();
-            for (i = 0; _tokenSequence.Current?.Type != TokenType.RightParent && i < methodParameters.Length; i++)
+            for (i = 0; _semanticTokenSeq.Current?.Type != TokenType.RightParent && i < methodParameters.Length; i++)
             {
                 var methodParameterType = methodParameters[i];
                 var parameter = Expression();
@@ -706,32 +704,32 @@ namespace Parser.Parser
                 {
                     if (!(expectedMethodParameter == CompilerType.Long && parameter.ReturnType == CompilerType.Int))
                     {
-                        _tokenSequence.Throw(
+                        _semanticTokenSeq.Throw(
                             $"Incorrect parameters passed for the {methodName} method. Expected :{methodParameterType}, actual {parameter.ReturnType}");
                     }
                 }
 
                 @params.Add(new MethodCallParameterExpression(parameter, methodParameters[i]));
 
-                if (_tokenSequence.Current.Type != TokenType.Comma &&
-                    _tokenSequence.Current.Type != TokenType.RightParent)
+                if (_semanticTokenSeq.Current.Type != TokenType.Comma &&
+                    _semanticTokenSeq.Current.Type != TokenType.RightParent)
                 {
-                    _tokenSequence.Throw("Method parameters must be separated by comma");
+                    _semanticTokenSeq.Throw("Method parameters must be separated by comma");
                 }
 
-                if (_tokenSequence.Current.Type == TokenType.Comma)
+                if (_semanticTokenSeq.Current.Type == TokenType.Comma)
                 {
-                    _tokenSequence.Step();
+                    _semanticTokenSeq.Step();
                 }
             }
 
-            if (i != methodParameters.Length || _tokenSequence.Current?.Type != TokenType.RightParent)
+            if (i != methodParameters.Length || _semanticTokenSeq.Current?.Type != TokenType.RightParent)
             {
-                _tokenSequence.Throw($"{methodName} method passed an incorrect number of parameters");
+                _semanticTokenSeq.Throw($"{methodName} method passed an incorrect number of parameters");
             }
 
-            if (_tokenSequence.Current == null) throw new CompileException("Method must end with the closing bracket");
-            _tokenSequence.Step();
+            if (_semanticTokenSeq.Current == null) throw new CompileException("Method must end with the closing bracket");
+            _semanticTokenSeq.Step();
             return new MethodCallExpression(methodName, methodInfo, @params);
         }
     }
