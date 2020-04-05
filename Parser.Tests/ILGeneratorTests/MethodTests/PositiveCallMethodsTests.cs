@@ -66,5 +66,22 @@ namespace Parser.Tests.ILGeneratorTests.MethodTests
             var r = func(1, 1, 1);
             Assert.Equal(2, r);
         }
+        
+        
+        public static long BooleanParameterTest(bool param)
+        {
+            return param ? 1 : 0;
+        }
+
+        [Fact]
+        public void Compile__MethodWithBooleanParameter__CalledCorrect()
+        {
+            var expr = "bool q = true; if(x == 1) {q = true;} else {q = false;} return BooleanParameterTest(q);";
+
+            var result = Compiler.CompileStatement(expr, GetType());
+
+            Assert.Equal(1, result(1, 0, 0));
+            Assert.Equal(0, result(0, 0, 0));
+        }
     }
 }

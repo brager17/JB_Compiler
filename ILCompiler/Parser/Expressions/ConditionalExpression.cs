@@ -1,28 +1,31 @@
+using System;
 using Parser.Parser.Statements;
 
 namespace Parser.Parser.Expressions
 {
-    public enum LogicalOperator
+    [Flags]
+    public enum Operator
     {
-        Less,
-        Eq,
-        And,
-        LessOrEq,
-        Greater,
-        GreaterOrEq,
+        Less = 1,
+        LessOrEq = 1 << 1,
+        Greater = 1 << 2,
+        GreaterOrEq = 1 << 3,
+        Eq = 1 << 4,
+        NoEq = 1 << 5,
+        Or = 1 << 6,
+        And = 1 << 7,
 
-        NoEq,
-        
-        Or
+        Arithmetic = Less | LessOrEq | Greater | GreaterOrEq | Eq | NoEq,
+        Logical = Or | And
     }
 
     public class LogicalBinaryExpression : IExpression
     {
         public readonly IExpression Left;
         public readonly IExpression Right;
-        public readonly LogicalOperator Operator;
+        public readonly Operator Operator;
 
-        public LogicalBinaryExpression(IExpression left, IExpression right, LogicalOperator @operator)
+        public LogicalBinaryExpression(IExpression left, IExpression right, Operator @operator)
         {
             Left = left;
             Right = right;
@@ -45,7 +48,7 @@ namespace Parser.Parser.Expressions
             IfTrue = ifTrue;
             Else = @else;
         }
-        
+
         public IfElseStatement(IExpression test, Statement ifTrue)
         {
             Test = test;

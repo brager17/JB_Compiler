@@ -14,7 +14,7 @@ namespace Parser.Tests.ParserTests.BinaryExpressionsParsingTests
             Assert.Equal(ExpressionType.Logical, result.ExpressionType);
             var logical = (LogicalBinaryExpression) result;
             
-            Assert.Equal(LogicalOperator.Greater, logical.Operator);
+            Assert.Equal(Operator.Greater, logical.Operator);
             Assert.Equal(logical.Left.ExpressionType, ExpressionType.Primary);
             Assert.Equal("13", ((PrimaryExpression) logical.Left).Value);
 
@@ -30,7 +30,7 @@ namespace Parser.Tests.ParserTests.BinaryExpressionsParsingTests
            
             Assert.Equal(ExpressionType.Logical, result.ExpressionType);
             var logical = (LogicalBinaryExpression) result;
-            Assert.Equal(LogicalOperator.Less, logical.Operator);
+            Assert.Equal(Operator.Less, logical.Operator);
             Assert.Equal(logical.Left.ExpressionType, ExpressionType.Primary);
             Assert.Equal("13", ((PrimaryExpression) logical.Left).Value);
 
@@ -46,7 +46,7 @@ namespace Parser.Tests.ParserTests.BinaryExpressionsParsingTests
             
             Assert.Equal(ExpressionType.Logical, result.ExpressionType);
             var logical = (LogicalBinaryExpression) result;
-            Assert.Equal(LogicalOperator.LessOrEq, logical.Operator);
+            Assert.Equal(Operator.LessOrEq, logical.Operator);
             Assert.Equal(logical.Left.ExpressionType, ExpressionType.Primary);
             Assert.Equal("13", ((PrimaryExpression) logical.Left).Value);
 
@@ -62,7 +62,7 @@ namespace Parser.Tests.ParserTests.BinaryExpressionsParsingTests
             
             Assert.Equal(ExpressionType.Logical, result.ExpressionType);
             var logical = (LogicalBinaryExpression) result;
-            Assert.Equal(LogicalOperator.GreaterOrEq, logical.Operator);
+            Assert.Equal(Operator.GreaterOrEq, logical.Operator);
             Assert.Equal(logical.Left.ExpressionType, ExpressionType.Primary);
             Assert.Equal("13", ((PrimaryExpression) logical.Left).Value);
 
@@ -78,7 +78,7 @@ namespace Parser.Tests.ParserTests.BinaryExpressionsParsingTests
             
             Assert.Equal(ExpressionType.Logical, result.ExpressionType);
             var logical = (LogicalBinaryExpression) result;
-            Assert.Equal(LogicalOperator.Eq, logical.Operator);
+            Assert.Equal(Operator.Eq, logical.Operator);
             Assert.Equal(logical.Left.ExpressionType, ExpressionType.Primary);
             Assert.Equal("13", ((PrimaryExpression) logical.Left).Value);
 
@@ -95,7 +95,7 @@ namespace Parser.Tests.ParserTests.BinaryExpressionsParsingTests
             
             Assert.Equal(ExpressionType.Logical, result.ExpressionType);
             var logical = (LogicalBinaryExpression) result;
-            Assert.Equal(LogicalOperator.NoEq, logical.Operator);
+            Assert.Equal(Operator.NoEq, logical.Operator);
             Assert.Equal(logical.Left.ExpressionType, ExpressionType.Primary);
             Assert.Equal("13", ((PrimaryExpression) logical.Left).Value);
 
@@ -111,7 +111,7 @@ namespace Parser.Tests.ParserTests.BinaryExpressionsParsingTests
             
             Assert.Equal(ExpressionType.Logical, result.ExpressionType);
             var logical = (LogicalBinaryExpression) result;
-            Assert.Equal(LogicalOperator.And, logical.Operator);
+            Assert.Equal(Operator.And, logical.Operator);
             Assert.Equal(ExpressionType.Logical,logical.Left.ExpressionType);
             Assert.Equal(ExpressionType.Logical,logical.Right.ExpressionType);
         }
@@ -124,7 +124,7 @@ namespace Parser.Tests.ParserTests.BinaryExpressionsParsingTests
             
             Assert.Equal(ExpressionType.Logical, result.ExpressionType);
             var logical = (LogicalBinaryExpression) result;
-            Assert.Equal(LogicalOperator.Or, logical.Operator);
+            Assert.Equal(Operator.Or, logical.Operator);
             Assert.Equal(ExpressionType.Logical,logical.Left.ExpressionType);
             Assert.Equal(ExpressionType.Logical,logical.Right.ExpressionType);
         }
@@ -137,7 +137,7 @@ namespace Parser.Tests.ParserTests.BinaryExpressionsParsingTests
             
             Assert.Equal(ExpressionType.Logical, result.ExpressionType);
             var logical = (LogicalBinaryExpression) result;
-            Assert.Equal(LogicalOperator.Or, logical.Operator);
+            Assert.Equal(Operator.Or, logical.Operator);
             Assert.Equal(ExpressionType.Logical,logical.Left.ExpressionType);
             Assert.Equal(ExpressionType.Logical,logical.Right.ExpressionType);
         }
@@ -152,7 +152,7 @@ namespace Parser.Tests.ParserTests.BinaryExpressionsParsingTests
             
             Assert.Equal(ExpressionType.Logical, result.ExpressionType);
             var logical = (LogicalBinaryExpression) result;
-            Assert.Equal(LogicalOperator.Eq, logical.Operator);
+            Assert.Equal(Operator.Eq, logical.Operator);
             Assert.Equal(ExpressionType.Logical,logical.Left.ExpressionType);
             Assert.Equal(ExpressionType.Logical,logical.Right.ExpressionType);
         }

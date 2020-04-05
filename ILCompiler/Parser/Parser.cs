@@ -262,7 +262,7 @@ namespace Parser.Parser
             while (_tokenSequence.Current?.Type == TokenType.Or)
             {
                 _tokenSequence.Step();
-                result = new LogicalBinaryExpression(result, AndLogical(), LogicalOperator.Or);
+                result = new LogicalBinaryExpression(result, AndLogical(), Operator.Or);
             }
 
             return result;
@@ -274,7 +274,7 @@ namespace Parser.Parser
             while (_tokenSequence.Current?.Type == TokenType.And)
             {
                 _tokenSequence.Step();
-                result = new LogicalBinaryExpression(result, EqualsNoEquals(), LogicalOperator.And);
+                result = new LogicalBinaryExpression(result, EqualsNoEquals(), Operator.And);
             }
 
             return result;
@@ -290,11 +290,11 @@ namespace Parser.Parser
                 {
                     case TokenType.EqualTo:
                         _tokenSequence.Step();
-                        result = new LogicalBinaryExpression(result, Logical(), LogicalOperator.Eq);
+                        result = new LogicalBinaryExpression(result, Logical(), Operator.Eq);
                         break;
                     case TokenType.NotEqualTo:
                         _tokenSequence.Step();
-                        result = new LogicalBinaryExpression(result, Logical(), LogicalOperator.NoEq);
+                        result = new LogicalBinaryExpression(result, Logical(), Operator.NoEq);
                         break;
                 }
             }
@@ -309,16 +309,16 @@ namespace Parser.Parser
             {
                 case TokenType.LessThan:
                     _tokenSequence.Step();
-                    return new LogicalBinaryExpression(left, Additive(), LogicalOperator.Less);
+                    return new LogicalBinaryExpression(left, Additive(), Operator.Less);
                 case TokenType.LessThanOrEquals:
                     _tokenSequence.Step();
-                    return new LogicalBinaryExpression(left, Additive(), LogicalOperator.LessOrEq);
+                    return new LogicalBinaryExpression(left, Additive(), Operator.LessOrEq);
                 case TokenType.GreaterThan:
                     _tokenSequence.Step();
-                    return new LogicalBinaryExpression(left, Additive(), LogicalOperator.Greater);
+                    return new LogicalBinaryExpression(left, Additive(), Operator.Greater);
                 case TokenType.GreaterThanOrEquals:
                     _tokenSequence.Step();
-                    return new LogicalBinaryExpression(left, Additive(), LogicalOperator.GreaterOrEq);
+                    return new LogicalBinaryExpression(left, Additive(), Operator.GreaterOrEq);
                 default:
                     return left;
             }

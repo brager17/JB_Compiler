@@ -567,5 +567,7 @@ namespace Parser.Tests.ILGeneratorTests
             f = Compiler.CompileStatement(expr);
             Assert.Equal(0, f(0, 0, 0));
         }
+
+      
     }
 }

@@ -1,21 +1,26 @@
+using System;
+
 namespace Parser.Parser.Expressions
 {
     // todo разделить для Expression'ов и для Statement'ов
+    [Flags]
     public enum ExpressionType
     {
         LocalVariable = 1,
-        FieldVariable,
-        MethodArgVariable,
-        Primary,
-        Binary,
-        Unary,
-        MethodCallExpression,
-        VoidMethodCallStatement,
-        Assignment,
-        Logical,
-        Return,
-        IfElse,
-        Statement
+        FieldVariable = 1 << 1,
+        MethodArgVariable = 1 << 2,
+        Primary = 1 << 3,
+        Binary = 1 << 4,
+        Unary = 1 << 5,
+        MethodCallExpression = 1 << 6,
+        VoidMethodCallStatement = 1 << 7,
+        Assignment = 1 << 8,
+        Logical = 1 << 9,
+        Return = 1 << 10,
+        IfElse = 1 << 11,
+        Statement = 1 << 12,
+        
+        Variables = LocalVariable | FieldVariable | MethodArgVariable
     }
 
     public interface IExpression

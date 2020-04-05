@@ -75,30 +75,94 @@ namespace Parser.ILCompiler
             return logger.GetLogs;
         }
 
-        public void VisitLogical(LogicalBinaryExpression expession, bool successLabel, Label label)
+        public LogicalBinaryExpression PrepareForConditionalIfNeeded(IExpression expression)
         {
-            LogicalBinaryExpression exp;
-            if (expession.TryCast<LogicalBinaryExpression>(out var logical))
+            LogicalBinaryExpression result = null;
+            if (expression.TryCast<UnaryExpression>(out var unary))
             {
-                exp = logical;
-            }
-            else if (expession.TryCast<UnaryExpression>(out var unary))
-            {
-                exp = (LogicalBinaryExpression) VisitUnary(unary);
-            }
-            else throw new NotImplementedException();
+                if (unary.Expression.TryCast<LogicalBinaryExpression>(out var logicalBinaryExpression))
+                    result = UnWrapUnaryExpression(logicalBinaryExpression);
 
-            if (exp.Left.ExpressionType != ExpressionType.Logical && exp.Right.ExpressionType != ExpressionType.Logical)
-            {
-                VisitExpression(exp.Left);
-                VisitExpression(exp.Right);
-                switch (exp.Operator)
+                else if (ExpressionType.Variables.HasFlag(unary.Expression.ExpressionType))
                 {
-                    case LogicalOperator.Less:
+                    result = new LogicalBinaryExpression(unary.Expression, new PrimaryExpression("false"), Operator.Eq);
+                }
+            }
+            else if (ExpressionType.Variables.HasFlag(expression.ExpressionType))
+            {
+                result = new LogicalBinaryExpression(expression, new PrimaryExpression("true"), Operator.Eq);
+            }
+            else if (expression.TryCast<PrimaryExpression>(out var primary) && primary.ReturnType == CompilerType.Bool)
+            {
+                result = new LogicalBinaryExpression(primary, new PrimaryExpression("true"), Operator.Eq);
+            }
+            else if (!expression.TryCast<LogicalBinaryExpression>(out result))
+            {
+                throw new Exception("Не разобран случай, дописать");
+            }
+
+
+            return result;
+        }
+
+        public LogicalBinaryExpression UnWrapUnaryExpression(LogicalBinaryExpression logical)
+        {
+            var left = logical.Left;
+            if (logical.Left.TryCast<UnaryExpression>(out var leftUnary))
+            {
+                left = leftUnary.Expression;
+            }
+            else if (logical.Left.TryCast<LogicalBinaryExpression>(out var leftLogical))
+            {
+                left = new UnaryExpression(leftLogical, UnaryType.Not);
+            }
+
+            var right = logical.Right;
+            if (logical.Right.TryCast<UnaryExpression>(out var rightUnary))
+            {
+                right = rightUnary.Expression;
+            }
+            else if (logical.Right.TryCast<LogicalBinaryExpression>(out var rightLogical))
+            {
+                right = new UnaryExpression(rightLogical, UnaryType.Not);
+            }
+
+            var @operator = RevertOperator(logical.Operator);
+
+            var result = new LogicalBinaryExpression(left, right, @operator);
+
+            return result;
+
+            Operator RevertOperator(Operator @operator) => @operator
+                switch
+                {
+                    Operator.Less => Operator.GreaterOrEq,
+                    Operator.Eq => Operator.NoEq,
+                    Operator.And => Operator.Or,
+                    Operator.LessOrEq => Operator.Greater,
+                    Operator.Greater => Operator.LessOrEq,
+                    Operator.GreaterOrEq => Operator.Less,
+                    Operator.NoEq => Operator.Eq,
+                    Operator.Or => Operator.And,
+                    _ => throw new ArgumentOutOfRangeException()
+                }
+            ;
+        }
+
+        public void Visit1(IExpression expression, bool successLabel, Label label)
+        {
+            var prepared = PrepareForConditionalIfNeeded(expression);
+            if (Operator.Arithmetic.HasFlag(prepared.Operator))
+            {
+                VisitExpression(prepared.Left);
+                VisitExpression(prepared.Right);
+                switch (prepared.Operator)
+                {
+                    case Operator.Less:
                         logger.Log("clt");
                         _ilGenerator.Emit(OpCodes.Clt);
                         break;
-                    case LogicalOperator.LessOrEq:
+                    case Operator.LessOrEq:
                         logger.Log("cgt");
                         _ilGenerator.Emit(OpCodes.Cgt);
                         logger.Log("ldc.i4.0");
@@ -106,11 +170,11 @@ namespace Parser.ILCompiler
                         _ilGenerator.Emit(OpCodes.Ldc_I4_0);
                         _ilGenerator.Emit(OpCodes.Ceq);
                         break;
-                    case LogicalOperator.Greater:
+                    case Operator.Greater:
                         logger.Log("cgt");
                         _ilGenerator.Emit(OpCodes.Cgt);
                         break;
-                    case LogicalOperator.GreaterOrEq:
+                    case Operator.GreaterOrEq:
                         logger.Log("clt");
                         _ilGenerator.Emit(OpCodes.Clt);
                         logger.Log("ldc.i4.0");
@@ -118,25 +182,18 @@ namespace Parser.ILCompiler
                         _ilGenerator.Emit(OpCodes.Ldc_I4_0);
                         _ilGenerator.Emit(OpCodes.Ceq);
                         break;
-                    case LogicalOperator.Eq:
+                    case Operator.Eq:
                         logger.Log("ceq");
                         _ilGenerator.Emit(OpCodes.Ceq);
                         break;
-                    case LogicalOperator.NoEq:
+                    case Operator.NoEq:
                         logger.Log("ceq");
                         _ilGenerator.Emit(OpCodes.Ceq);
                         logger.Log("ldc.i4.0");
                         logger.Log("ceq");
                         _ilGenerator.Emit(OpCodes.Ldc_I4_0);
                         _ilGenerator.Emit(OpCodes.Ceq);
-                        break;
-                    case LogicalOperator.And:
-                        logger.Log("and");
-                        _ilGenerator.Emit(OpCodes.And);
-                        break;
-                    case LogicalOperator.Or:
-                        logger.Log("or");
-                        _ilGenerator.Emit(OpCodes.Or);
+
                         break;
                 }
 
@@ -144,19 +201,19 @@ namespace Parser.ILCompiler
             }
             else
             {
-                switch (exp.Operator, branch: successLabel)
+                switch (prepared.Operator, branch: successLabel)
                 {
-                    case (LogicalOperator.And, true):
-                        VisitAsAnd(exp, successLabel, label);
+                    case (Operator.And, true):
+                        VisitAsAnd(prepared, successLabel, label);
                         break;
-                    case (LogicalOperator.Or, true):
-                        VisitAsOr(exp, successLabel, label);
+                    case (Operator.Or, true):
+                        VisitAsOr(prepared, successLabel, label);
                         break;
-                    case (LogicalOperator.And, false):
-                        VisitAsOr(exp, successLabel, label);
+                    case (Operator.And, false):
+                        VisitAsOr(prepared, successLabel, label);
                         break;
-                    case (LogicalOperator.Or, false):
-                        VisitAsAnd(exp, successLabel, label);
+                    case (Operator.Or, false):
+                        VisitAsAnd(prepared, successLabel, label);
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();
@@ -166,128 +223,45 @@ namespace Parser.ILCompiler
 
         public void VisitAsOr(LogicalBinaryExpression exp, bool successLabel, Label label)
         {
-            VisitLogical((LogicalBinaryExpression) exp.Left, successLabel, label);
-            VisitLogical((LogicalBinaryExpression) exp.Right, successLabel, label);
+            Visit1(exp.Left, successLabel, label);
+            Visit1(exp.Right, successLabel, label);
         }
 
         public void VisitAsAnd(LogicalBinaryExpression exp, bool successLabel, Label label)
         {
-            var endIf = _ilGenerator.DefineLabel();
-            VisitLogical((LogicalBinaryExpression) exp.Left, !successLabel, endIf);
-            VisitLogical((LogicalBinaryExpression) exp.Right, successLabel, label);
-            _ilGenerator.MarkLabel(endIf);
+            var afterIf = _ilGenerator.DefineLabel();
+            Visit1(exp.Left, !successLabel, afterIf);
+            Visit1(exp.Right, successLabel, label);
+            _ilGenerator.MarkLabel(afterIf);
         }
 
 
         public override LogicalBinaryExpression VisitLogical(LogicalBinaryExpression logical)
         {
-            if (logical.Left.ExpressionType != ExpressionType.Logical &&
-                logical.Right.ExpressionType != ExpressionType.Logical)
-            {
-                VisitExpression(logical.Left);
-                VisitExpression(logical.Right);
-                switch (logical.Operator)
-                {
-                    case LogicalOperator.Less:
-                        logger.Log("clt");
-                        _ilGenerator.Emit(OpCodes.Clt);
-                        break;
-                    case LogicalOperator.LessOrEq:
-                        logger.Log("cgt");
-                        _ilGenerator.Emit(OpCodes.Cgt);
-                        logger.Log("ldc.i4.0");
-                        logger.Log("ceq");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_0);
-                        _ilGenerator.Emit(OpCodes.Ceq);
-                        break;
-                    case LogicalOperator.Greater:
-                        logger.Log("cgt");
-                        _ilGenerator.Emit(OpCodes.Cgt);
-                        break;
-                    case LogicalOperator.GreaterOrEq:
-                        logger.Log("clt");
-                        _ilGenerator.Emit(OpCodes.Clt);
-                        logger.Log("ldc.i4.0");
-                        logger.Log("ceq");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_0);
-                        _ilGenerator.Emit(OpCodes.Ceq);
-                        break;
-                    case LogicalOperator.Eq:
-                        logger.Log("ceq");
-                        _ilGenerator.Emit(OpCodes.Ceq);
-                        break;
-                    case LogicalOperator.NoEq:
-                        logger.Log("ceq");
-                        _ilGenerator.Emit(OpCodes.Ceq);
-                        logger.Log("ldc.i4.0");
-                        logger.Log("ceq");
-                        _ilGenerator.Emit(OpCodes.Ldc_I4_0);
-                        _ilGenerator.Emit(OpCodes.Ceq);
-                        break;
-                    case LogicalOperator.And:
-                        logger.Log("and");
-                        _ilGenerator.Emit(OpCodes.And);
-                        break;
-                    case LogicalOperator.Or:
-                        logger.Log("or");
-                        _ilGenerator.Emit(OpCodes.Or);
-                        break;
-                }
-            }
-            else if (logical.Left.ExpressionType == ExpressionType.Logical &&
-                     logical.Right.ExpressionType == ExpressionType.Primary)
-            {
-                logical.Right.TryCast<PrimaryExpression>(out var primaryExpression);
-                if (primaryExpression.Value == "true")
-                {
-                    VisitLogical((LogicalBinaryExpression) logical.Left);
-                }
-                else if (primaryExpression.Value == "false")
-                {
-                    VisitUnary(new UnaryExpression(logical.Left, UnaryType.Not));
-                }
-            }
-            else if (logical.Left.ExpressionType == ExpressionType.Primary &&
-                     logical.Right.ExpressionType == ExpressionType.Logical)
-            {
-                logical.Left.TryCast<PrimaryExpression>(out var primaryExpression);
-                if (primaryExpression.Value == "true")
-                {
-                    VisitLogical((LogicalBinaryExpression) logical.Right);
-                }
-                else if (primaryExpression.Value == "false")
-                {
-                    VisitUnary(new UnaryExpression(logical.Right, UnaryType.Not));
-                }
-            }
-            else
+            if (Operator.Logical.HasFlag(logical.Operator))
             {
                 LogicalBinaryExpression left;
                 LogicalBinaryExpression right;
 
-                if (logical.Left.TryCast<UnaryExpression>(out var unaryExpression))
-                    left = (LogicalBinaryExpression) VisitUnary(unaryExpression);
-                else logical.Left.TryCast(out left);
+                left = PrepareForConditionalIfNeeded(logical.Left);
+                right = PrepareForConditionalIfNeeded(logical.Right);
 
-                if (logical.Right.TryCast(out unaryExpression))
-                    right = (LogicalBinaryExpression) VisitUnary(unaryExpression);
-                else logical.Right.TryCast(out right);
                 switch (logical.Operator)
                 {
-                    case LogicalOperator.And:
+                    case Operator.And:
                         Label @else = _ilGenerator.DefineLabel();
                         Label @end = _ilGenerator.DefineLabel();
-                        VisitLogical(left, false, @else);
+                        Visit1(left, false, @else);
                         VisitExpression(right);
                         _ilGenerator.Emit(OpCodes.Br, end);
                         _ilGenerator.MarkLabel(@else);
                         _ilGenerator.Emit(OpCodes.Ldc_I4_0);
                         _ilGenerator.MarkLabel(end);
                         break;
-                    case LogicalOperator.Or:
+                    case Operator.Or:
                         @else = _ilGenerator.DefineLabel();
                         @end = _ilGenerator.DefineLabel();
-                        VisitLogical(left, false, @else);
+                        Visit1(left, false, @else);
                         _ilGenerator.Emit(OpCodes.Ldc_I4_1);
                         _ilGenerator.Emit(OpCodes.Br, end);
                         _ilGenerator.MarkLabel(@else);
@@ -296,7 +270,51 @@ namespace Parser.ILCompiler
                         break;
                 }
             }
+            else
+            {
+                VisitExpression(logical.Left);
+                VisitExpression(logical.Right);
+                switch (logical.Operator)
+                {
+                    case Operator.Less:
+                        logger.Log("clt");
+                        _ilGenerator.Emit(OpCodes.Clt);
+                        break;
+                    case Operator.LessOrEq:
+                        logger.Log("cgt");
+                        _ilGenerator.Emit(OpCodes.Cgt);
+                        logger.Log("ldc.i4.0");
+                        logger.Log("ceq");
+                        _ilGenerator.Emit(OpCodes.Ldc_I4_0);
+                        _ilGenerator.Emit(OpCodes.Ceq);
+                        break;
+                    case Operator.Greater:
+                        logger.Log("cgt");
+                        _ilGenerator.Emit(OpCodes.Cgt);
+                        break;
+                    case Operator.GreaterOrEq:
+                        logger.Log("clt");
+                        _ilGenerator.Emit(OpCodes.Clt);
+                        logger.Log("ldc.i4.0");
+                        logger.Log("ceq");
+                        _ilGenerator.Emit(OpCodes.Ldc_I4_0);
+                        _ilGenerator.Emit(OpCodes.Ceq);
+                        break;
+                    case Operator.Eq:
+                        logger.Log("ceq");
+                        _ilGenerator.Emit(OpCodes.Ceq);
+                        break;
+                    case Operator.NoEq:
+                        logger.Log("ceq");
+                        _ilGenerator.Emit(OpCodes.Ceq);
+                        logger.Log("ldc.i4.0");
+                        logger.Log("ceq");
+                        _ilGenerator.Emit(OpCodes.Ldc_I4_0);
+                        _ilGenerator.Emit(OpCodes.Ceq);
 
+                        break;
+                }
+            }
 
             return logical;
         }
@@ -462,52 +480,6 @@ namespace Parser.ILCompiler
 
                 case UnaryType.Not:
                 {
-                    if (unaryExpression.Expression.TryCast<LogicalBinaryExpression>(
-                        out var logExp))
-                    {
-                        var left = logExp.Left;
-                        if (logExp.Left.TryCast<UnaryExpression>(out var leftUnary))
-                        {
-                            left = leftUnary.Expression;
-                        }
-                        else if (logExp.Left.TryCast<LogicalBinaryExpression>(out var leftLogical))
-                        {
-                            left = new UnaryExpression(leftLogical, UnaryType.Not);
-                        }
-
-                        var right = logExp.Right;
-                        if (logExp.Right.TryCast<UnaryExpression>(out var rightUnary))
-                        {
-                            right = rightUnary.Expression;
-                        }
-                        else if (logExp.Right.TryCast<LogicalBinaryExpression>(out var rightLogical))
-                        {
-                            right = new UnaryExpression(rightLogical, UnaryType.Not);
-                        }
-
-                        var @operator = RevertOperator(logExp.Operator);
-
-                        var result = new LogicalBinaryExpression(left, right, @operator);
-
-                        VisitExpression(result);
-                        return result;
-
-                        LogicalOperator RevertOperator(LogicalOperator @operator) => @operator
-                            switch
-                            {
-                                LogicalOperator.Less => LogicalOperator.GreaterOrEq,
-                                LogicalOperator.Eq => LogicalOperator.NoEq,
-                                LogicalOperator.And => LogicalOperator.Or,
-                                LogicalOperator.LessOrEq => LogicalOperator.Greater,
-                                LogicalOperator.Greater => LogicalOperator.LessOrEq,
-                                LogicalOperator.GreaterOrEq => LogicalOperator.Less,
-                                LogicalOperator.NoEq => LogicalOperator.Eq,
-                                LogicalOperator.Or => LogicalOperator.And,
-                                _ => throw new ArgumentOutOfRangeException()
-                            }
-                        ;
-                    }
-
                     var expression = VisitExpression(unaryExpression.Expression);
 
                     logger.Log("Ldc.I4.0");
