@@ -65,18 +65,20 @@ namespace Bumper
         return SecretOperation(x,y);
 ";
 
-
             var func = Compile(calculator);
 
-            Console.WriteLine($"10 + 5 = {func(10, 5, 0)}");
-            Console.WriteLine($"10 - 5 = {func(10, 5, 1)}");
-            Console.WriteLine($"10 * 5 = {func(10, 5, 2)}");
-            Console.WriteLine($"10 / 5 = {func(10, 5, 3)}");
+            Console.WriteLine($"10 + 5 = {func(10, 5, 0)}"); // 10 + 5 = 15
+            Console.WriteLine($"10 - 5 = {func(10, 5, 1)}"); // 10 - 5 = 5
+            Console.WriteLine($"10 * 5 = {func(10, 5, 2)}"); // 10 * 5 = 50
+            Console.WriteLine($"10 / 5 = {func(10, 5, 3)}"); // 10 / 5 = 2
+            
             operation = 0;
-            Console.WriteLine($"10 + 5 = {func(10, 5, 4)}");
+            Console.WriteLine($"10 + 5 = {func(10, 5, 4)}"); // 10 + 5 = 15
+            
             operation = -1;
             useSecretOperation = true;
-            Console.WriteLine($"Secret Operation = {func(10, 5, 5)}");
+            Console.WriteLine($"Secret Operation = {func(10, 5, 5)}"); // Secret Operation = 30
+
         }
 
         private static CompileResult Compile(string str)
