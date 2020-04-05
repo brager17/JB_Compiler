@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ILCompiler", "ILCompiler\ILCompiler.csproj", "{CE4D8D6A-43E0-4AA3-AE5E-BE4404459B97}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ILCompiler.Tests", "ILCompiler.Tests\ILCompiler.Tests.csproj", "{5CBD9D59-BACD-43A3-BE19-278BD88257F5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Starter", "Bumper\Starter.csproj", "{02529A45-3F24-4F96-9341-875513C5C798}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CE4D8D6A-43E0-4AA3-AE5E-BE4404459B97}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CE4D8D6A-43E0-4AA3-AE5E-BE4404459B97}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CE4D8D6A-43E0-4AA3-AE5E-BE4404459B97}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CE4D8D6A-43E0-4AA3-AE5E-BE4404459B97}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5CBD9D59-BACD-43A3-BE19-278BD88257F5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5CBD9D59-BACD-43A3-BE19-278BD88257F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5CBD9D59-BACD-43A3-BE19-278BD88257F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5CBD9D59-BACD-43A3-BE19-278BD88257F5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{02529A45-3F24-4F96-9341-875513C5C798}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{02529A45-3F24-4F96-9341-875513C5C798}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{02529A45-3F24-4F96-9341-875513C5C798}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{02529A45-3F24-4F96-9341-875513C5C798}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

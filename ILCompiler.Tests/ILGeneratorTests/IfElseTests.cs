@@ -581,13 +581,29 @@ namespace Parser.Tests.ILGeneratorTests
         public void Parse__LogicalOperators__NotCalculatedIfTheResultIsAlreadyKnown()
         {
             var func = Compiler.CompileStatement(
-                "if(true || MethodBool(ref x)){return x;}else{return x;}",
+                @"
+                if(true || MethodBool(ref x))
+                {
+                   return x;
+                }
+                else
+                {
+                    return x;
+                }",
                 GetType());
 
             Assert.Equal(1,func(1, 1, 1));
 
             func = Compiler.CompileStatement(
-                "if(false && MethodBool(ref x)){return x;}else{return x;}",
+                @"
+                    if(false && MethodBool(ref x))
+                    {
+                        return x;
+                    }
+                    else
+                    {
+                        return x;
+                    }",
                 GetType());
          
             Assert.Equal(1,func(1, 1, 1));
