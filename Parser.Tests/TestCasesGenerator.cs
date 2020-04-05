@@ -7,12 +7,29 @@ using System.Text;
 using Compiler;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Parser.Tests.ILGeneratorTests;
 using Xunit;
 
 namespace Parser
 {
     public class TestCasesGenerator
     {
+        private Random _random = new Random();
+
+        long LongRandom()
+        {
+            byte[] buf = new byte[8];
+            _random.NextBytes(buf);
+            long longRand = BitConverter.ToInt64(buf, 0);
+
+            return longRand;
+        }
+
+        public (long x, long y, long z) GenerateRandomParameters()
+        {
+            return (LongRandom(), LongRandom(), LongRandom());
+        }
+
         public void RandomExpressionToFile()
         {
             var generated = GenerateRandomExpression(100);
@@ -182,14 +199,10 @@ namespace Parser
         [Fact]
         public void ldcSupport()
         {
-            var q = TestHelper.GeneratedExpressionMySelf("22147482649 - 10000", out var f);
+            var q = Compiler.CompileExpression("22147482649 - 10000", out var f);
             f(1, 1, 1);
         }
 
-        public long Fact12(long x)
-        {
-            return 22147482649 + (99 + 1 + x);
-        }
 
         public MemoryStream GetAssemblyStream(string expr = null, string[] statements = null, string methodBody = null)
         {
@@ -216,36 +229,7 @@ namespace Parser
 
         private string Wrap(string expr, string[] statements = null, string methodBody = null)
         {
-            var sample = @"
-using System.Runtime.CompilerServices;
-namespace RunnerNamespace
-{
-     public class Runner
-    {
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static long MethodWithoutParameters() => 1;
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static long MethodWith1Parameter(long x) => x;
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static long MethodWith2Parameters(long x, long y) => (x + y);
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static long MethodWith3Parameters(long x, long y, long z) => (x + y + z);
-        
-        public static long a = 1;
-        public static long b = 2;
-        public static long c = 3;
-
-        [MethodImpl(MethodImplOptions.NoOptimization)]
-        public static long Run(long x, long y, long z)
-        {
-            {statements};
-            return {expr};
-        }
-    }
-}";
+            var sample = MethodsFieldsForTests.RunnerClassTemplate;
             if (methodBody != null)
             {
                 var replace = sample.Replace("{statements};", "");

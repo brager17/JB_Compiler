@@ -9,10 +9,13 @@ namespace Compiler
         {
             switch (expression.ExpressionType)
             {
-                case ExpressionType.Variable when typeof(T) == typeof(VariableExpression):
+                case ExpressionType.LocalVariable when typeof(T) == typeof(LocalVariableExpression):
+                case ExpressionType.FieldVariable when typeof(T) == typeof(FieldVariableExpression):
+                case ExpressionType.MethodArgVariable when typeof(T) == typeof(MethodArgumentVariableExpression):
                 case ExpressionType.Primary when typeof(T) == typeof(PrimaryExpression):
                 case ExpressionType.Binary when typeof(T) == typeof(BinaryExpression):
                 case ExpressionType.Unary when typeof(T) == typeof(UnaryExpression):
+                case ExpressionType.Logical when typeof(T) == typeof(LogicalBinaryExpression):
                 case ExpressionType.MethodCallExpression when typeof(T) == typeof(MethodCallExpression):
                     value = (T) expression;
                     return true;
@@ -26,7 +29,7 @@ namespace Compiler
         public static int AsInt(this PrimaryExpression primaryExpression) => int.Parse(primaryExpression.Value);
         public static bool AsBool(this PrimaryExpression primaryExpression) => bool.Parse(primaryExpression.Value);
 
-        public static Type GetCSharpType(this IExpression expression) => expression.ReturnType switch
+        public static Type GetCSharpType(this CompilerType compilerType) => compilerType switch
         {
             CompilerType.Bool => typeof(bool),
             CompilerType.Int => typeof(int),

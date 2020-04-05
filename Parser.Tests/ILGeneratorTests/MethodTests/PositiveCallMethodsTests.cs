@@ -12,7 +12,7 @@ namespace Parser.Tests.ILGeneratorTests
         [InlineData("1+MethodWith2Parameters(1,3)")]
         public void ExpressionWithCallsStaticMethods(string expression)
         {
-            var actual = TestHelper.GeneratedExpressionMySelf(expression, out var func);
+            var actual = Compiler.CompileExpression(expression, out var func, typeof(MethodsFieldsForTests));
 
             var expected = TestHelper.GeneratedRoslynExpression(expression, out var monoFunc);
 
@@ -25,7 +25,7 @@ namespace Parser.Tests.ILGeneratorTests
         [InlineData("1+MethodWith3Parameters(a,1324,c)")]
         public void Parse__StaticMethodWithLocalVariableParameters__Correct(string expression)
         {
-            var actual = TestHelper.GeneratedExpressionMySelf(expression, out var func);
+            var actual = Compiler.CompileExpression(expression, out var func, typeof(MethodsFieldsForTests));
 
             var expected = TestHelper.GeneratedRoslynExpression(expression, out var roslynGeneratedFunc);
 
@@ -40,22 +40,20 @@ namespace Parser.Tests.ILGeneratorTests
             "1+MethodWith1Parameter(x+12+y)*MethodWith1Parameter(12*14+MethodWithoutParameters()*MethodWith3Parameters(x,y,z))")]
         public void Parse__StaticMethodWithExpressionParameter(string expr)
         {
-            var actual = TestHelper.GeneratedExpressionMySelf(expr, out var func);
+            var actual = Compiler.CompileExpression(expr, out var func, typeof(MethodsFieldsForTests));
 
             var expected = TestHelper.GeneratedRoslynExpression(expr, out var roslynGeneratedFunc);
 
             Assert.Equal(expected, actual);
             Assert.Equal(roslynGeneratedFunc(1, 2, 3), func(1, 2, 3));
         }
-
+        
         [UsedImplicitly]
         public static void AddByRef(ref long x)
         {
             x++;
         }
 
-        [UsedImplicitly]
-        public static int s = 1;
 
         [Fact]
         public void Parse__VoidRefMethodCall__MethodWasCalled()
@@ -65,7 +63,7 @@ namespace Parser.Tests.ILGeneratorTests
                 AddByRef(ref x);
                 return x;";
 
-            TestHelper.GeneratedStatementsMySelf(exprWithArgX, out var func, @this: GetType());
+            Compiler.CompileStatement(exprWithArgX, out var func, typeof(MethodsFieldsForTests));
             var r = func(1, 1, 1);
             Assert.Equal(2, r);
         }

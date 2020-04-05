@@ -3,7 +3,9 @@ namespace Parser
     // todo разделить для Expression'ов и для Statement'ов
     public enum ExpressionType
     {
-        Variable = 1,
+        LocalVariable = 1,
+        FieldVariable,
+        MethodArgVariable,
         Primary,
         Binary,
         Unary,
@@ -43,8 +45,18 @@ namespace Parser
             ByReference = byReference;
         }
 
+        public VariableExpression(string name, CompilerType compilerType, bool byReference,
+            ExpressionType expressionType)
+        {
+            Name = name;
+            ReturnType = compilerType;
+            ExpressionType = expressionType;
+            ByReference = byReference;
+        }
+
+
         public readonly bool ByReference;
-        public ExpressionType ExpressionType { get; } = ExpressionType.Variable;
+        public ExpressionType ExpressionType { get; }
         public CompilerType ReturnType { get; }
     }
 }

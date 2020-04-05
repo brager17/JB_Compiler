@@ -5,7 +5,7 @@ namespace Parser
     public class UnaryTests
     {
         [Fact]
-        public void NotTypeTests()
+        public void Parse__NotTypeTests__CorrectAst()
         {
             var expr = "!(x!=1)";
             var result = TestHelper.GetParseResultExpression(expr);

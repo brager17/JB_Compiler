@@ -1,0 +1,26 @@
+using System.Collections.Generic;
+using System.Reflection;
+
+namespace Parser
+{
+    public class ParserContext
+    {
+        public ParserContext(IReadOnlyList<Token> tokens, Dictionary<string, CompilerType> methodParameters,
+            Dictionary<string, FieldInfo> closureFields,
+            Dictionary<string, (CompilerType[] parameters, CompilerType @return)> closureMethods,
+            bool constantFolding)
+        {
+            Tokens = tokens;
+            MethodParameters = methodParameters;
+            ClosureFields = closureFields ?? new Dictionary<string, FieldInfo>();
+            ClosureMethods = closureMethods;
+            ConstantFolding = constantFolding;
+        }
+
+        public readonly IReadOnlyList<Token> Tokens;
+        public readonly Dictionary<string, CompilerType> MethodParameters;
+        public readonly Dictionary<string, FieldInfo> ClosureFields;
+        public readonly Dictionary<string, (CompilerType[] parameters, CompilerType @return)> ClosureMethods;
+        public readonly bool ConstantFolding;
+    }
+}

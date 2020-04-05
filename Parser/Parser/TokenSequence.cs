@@ -13,7 +13,7 @@ namespace Parser
             _tokens = tokens;
         }
 
-        public int _currentIndex = 0;
+        private int _currentIndex;
         public Token? Current => Get(0);
         public Token? Next => Get(1);
 

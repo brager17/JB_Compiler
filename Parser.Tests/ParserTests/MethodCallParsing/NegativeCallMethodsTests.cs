@@ -32,8 +32,7 @@ namespace Parser.Tests.ILGeneratorTests
         [InlineData("return BoolMethod(1);")]
         public void Parse__CallMethodWithInvalidParams(string exr)
         {
-            var exception = Assert.Throws<CompileException>
-                (() => TestHelper.GeneratedStatementsMySelf(exr, out var func, @this: GetType()));
+            var exception = Assert.Throws<CompileException>(() =>Compiler.CompileStatement(exr, out _, GetType()));
             
         }
 
@@ -43,7 +42,7 @@ namespace Parser.Tests.ILGeneratorTests
         public void Parse__CallMethodWithInvalidParamsAmount(string expr)
         {
             var exception = Assert.Throws<CompileException>
-                (() => TestHelper.GeneratedStatementsMySelf(expr, out var func, @this: GetType()));
+                (() => Compiler.CompileStatement(expr, out _, typeof(MethodsFieldsForTests)));
             Assert.Equal(exception.Message,"MethodWith2Parameters method passed an incorrect number of parameters");
         }
     }

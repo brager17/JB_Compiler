@@ -6,19 +6,25 @@ namespace Parser
     {
         public static PrimaryExpression FoldedAfterMul0 = new PrimaryExpression("0") {IsFoldedAfterMul0 = true};
 
-        public static bool GetPrimaryType(string number, out CompilerType compilerType)
+        public static bool GetPrimaryType(string constant, out CompilerType compilerType)
         {
             compilerType = default;
 
-            if (int.TryParse(number, out _))
+            if (int.TryParse(constant, out _))
             {
                 compilerType = CompilerType.Int;
                 return true;
             }
 
-            if (long.TryParse(number, out _))
+            if (long.TryParse(constant, out _))
             {
                 compilerType = CompilerType.Long;
+                return true;
+            }
+
+            if (bool.TryParse(constant, out _))
+            {
+                compilerType = CompilerType.Bool;
                 return true;
             }
 
@@ -41,7 +47,7 @@ namespace Parser
 
         public readonly string Value;
         public ExpressionType ExpressionType { get; } = ExpressionType.Primary;
-        public CompilerType ReturnType { get; } 
+        public CompilerType ReturnType { get; }
 
         // (x*12*14)*0 = 0; needs for example : (1/0*x) - no divide by null compile time exception, (1/0) - divide by null compile time exception
         public bool IsFoldedAfterMul0;

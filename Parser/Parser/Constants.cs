@@ -4,8 +4,8 @@ namespace Parser
 {
     public static class Constants
     {
-        public static Dictionary<string, (string, CompilerType)> Dictionary =
-            new Dictionary<string, (string, CompilerType)>()
+        public static Dictionary<string, (string toString, CompilerType type)> Dictionary =
+            new Dictionary<string, (string , CompilerType )>()
             {
                 {"int.MinValue", (int.MinValue.ToString(), CompilerType.Int)},
                 {"int.MaxValue", (int.MaxValue.ToString(), CompilerType.Int)},

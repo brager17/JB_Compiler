@@ -14,7 +14,7 @@ namespace Parser
 
             Assert.Equal(ExpressionType.IfElse, result[0].ExpressionType);
             var ifElseStatement = (IfElseStatement) result[0];
-            Assert.Equal(ExpressionType.Variable, ((LogicalBinaryExpression)ifElseStatement.Test).Left.ExpressionType);
+            Assert.Equal(ExpressionType.MethodArgVariable, ((LogicalBinaryExpression)ifElseStatement.Test).Left.ExpressionType);
             Assert.Equal(ExpressionType.Primary, ((LogicalBinaryExpression)ifElseStatement.Test).Right.ExpressionType);
             Assert.Equal(ExpressionType.Assignment, ((IfElseStatement) result[0]).IfTrue.Statements[0].ExpressionType);
             var assignment = (AssignmentStatement) ((IfElseStatement) result[0]).IfTrue.Statements[0];
@@ -31,7 +31,7 @@ namespace Parser
 
             Assert.Equal(ExpressionType.IfElse, result[0].ExpressionType);
             var ifElseStatement = (IfElseStatement) result[0];
-            Assert.Equal(ExpressionType.Variable, ((LogicalBinaryExpression)ifElseStatement.Test).Left.ExpressionType);
+            Assert.Equal(ExpressionType.MethodArgVariable, ((LogicalBinaryExpression)ifElseStatement.Test).Left.ExpressionType);
             Assert.Equal(ExpressionType.Primary, ((LogicalBinaryExpression)ifElseStatement.Test).Right.ExpressionType);
             Assert.Equal(ExpressionType.Assignment, ((IfElseStatement) result[0]).Else.Statements[0].ExpressionType);
 

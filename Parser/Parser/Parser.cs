@@ -1,40 +1,20 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using Compiler;
 using Parser.Exceptions;
 
 namespace Parser
 {
-    public class ParserContext
-    {
-        public ParserContext(IReadOnlyList<Token> tokens, Dictionary<string, CompilerType> methodParameters,
-            Dictionary<string, CompilerType> closureFields,
-            Dictionary<string, (CompilerType[] parameters, CompilerType @return)> closureMethods,
-            bool constantFolding = true)
-        {
-            Tokens = tokens;
-            MethodParameters = methodParameters ?? new Dictionary<string, CompilerType>();
-            ClosureFields = closureFields ?? new Dictionary<string, CompilerType>();
-            ClosureMethods = closureMethods ??
-                             new Dictionary<string, (CompilerType[] parameters, CompilerType @return)>();
-            ConstantFolding = constantFolding;
-        }
-
-        public readonly IReadOnlyList<Token> Tokens;
-        public readonly Dictionary<string, CompilerType> MethodParameters;
-        public readonly Dictionary<string, CompilerType> ClosureFields;
-        public readonly Dictionary<string, (CompilerType[] parameters, CompilerType @return)> ClosureMethods;
-        public readonly bool ConstantFolding;
-    }
-
     public class Parser
     {
-        private readonly Dictionary<string, CompilerType> _closedFields;
+        private readonly Dictionary<string, FieldInfo> _closedFields;
         private readonly bool _constantFolding;
-        private Dictionary<string, CompilerType> _parameters;
-        private Dictionary<string, CompilerType> _localVariables = new Dictionary<string, CompilerType>();
-        private TokenSequence _tokenSequence;
-        public readonly Dictionary<string, (CompilerType[] parameters, CompilerType @return)> _closureMethods;
+        private readonly Dictionary<string, CompilerType> _parameters;
+        private readonly Dictionary<string, CompilerType> _localVariables = new Dictionary<string, CompilerType>();
+        private readonly TokenSequence _tokenSequence;
+        private readonly Dictionary<string, (CompilerType[] parameters, CompilerType @return)> _closureMethods;
 
         public Parser(ParserContext context)
         {
@@ -89,16 +69,21 @@ namespace Parser
                 unaryExpression.Expression.TryCast(out primary) && primary.ReturnType == CompilerType.Long)
                 return true;
 
-            if (right.TryCast<VariableExpression>(out var variable) && variable.ReturnType == CompilerType.Long)
+            if (right.TryCast<LocalVariableExpression>(out var arg) && arg.ReturnType == CompilerType.Long)
                 return true;
 
+            if (right.TryCast<FieldVariableExpression>(out var field) && field.ReturnType == CompilerType.Long)
+                return true;
+
+            if (right.TryCast<MethodCallExpression>(out var call) && call.ReturnType == CompilerType.Long)
+                return true;
 
             return false;
         }
 
         private IStatement AssignmentStatement()
         {
-            VariableExpression variableExpression = null;
+            VariableExpression varExpression = null;
             if (_tokenSequence.Current?.Type == TokenType.BoolWord ||
                 _tokenSequence.Current?.Type == TokenType.IntWord ||
                 _tokenSequence.Current?.Type == TokenType.LongWord)
@@ -125,27 +110,20 @@ namespace Parser
                         $"A local or parameter named '{_tokenSequence.Current.Value}' cannot be declared in this scope because that name is used in an enclosing local scope to define a local or parameter");
                 }
 
-                variableExpression = new VariableExpression(_tokenSequence.Current.Value, type);
-                _localVariables.Add(variableExpression.Name, variableExpression.ReturnType);
+                varExpression = new LocalVariableExpression(_tokenSequence.Current.Value, type, _localVariables.Count);
+                _localVariables.Add(varExpression.Name, varExpression.ReturnType);
                 _tokenSequence.Step(); // variable name
             }
             else if (_tokenSequence.Current?.Type == TokenType.Variable)
             {
-                if (_localVariables.TryGetValue(_tokenSequence.Current.Value, out var compilerType))
-                {
-                    variableExpression = new VariableExpression(_tokenSequence.Current.Value, compilerType);
-                    _tokenSequence.Step(); // assignment sign
-                }
-                else
-                {
-                    throw new CompileException($"Variable with name '{_tokenSequence.Current.Value}' is not declared");
-                }
+                var token = _tokenSequence.CurrentWithStep();
+                varExpression = GetVariable(token);
             }
 
             _tokenSequence.Step(); // assignment sign
             var expression = Expression();
 
-            if (CheckCannotImplicitConversion(variableExpression, expression))
+            if (CheckCannotImplicitConversion(varExpression, expression))
             {
                 throw new CompileException("Cannot implicitly convert type 'long ' to int");
             }
@@ -157,7 +135,7 @@ namespace Parser
 
             _tokenSequence.Step();
 
-            return new AssignmentStatement(variableExpression, expression);
+            return new AssignmentStatement(varExpression, expression);
         }
 
         public IStatement Statement()
@@ -210,7 +188,7 @@ namespace Parser
             }
 
             _tokenSequence.Step();
-            var expression = Expression();
+            var test = Expression();
 
             if (_tokenSequence.Current.Type != TokenType.RightParent)
             {
@@ -236,7 +214,7 @@ namespace Parser
             if (_tokenSequence.Next?.Type != TokenType.ElseWord)
             {
                 _tokenSequence.Step();
-                return new IfElseStatement(expression,
+                return new IfElseStatement(test,
                     new Statement(ifStatements.ToArray()));
             }
 
@@ -261,7 +239,7 @@ namespace Parser
 
             _tokenSequence.Step();
 
-            return new IfElseStatement(expression,
+            return new IfElseStatement(test,
                 new Statement(ifStatements.ToArray()),
                 new Statement(elseStatements.ToArray()));
         }
@@ -345,6 +323,7 @@ namespace Parser
         public IExpression Additive()
         {
             var result = Multiplicative();
+            CheckValidArithmeticOperation(_tokenSequence.Current?.Type, result);
             // x + y + (x*y+x) = (x+y)+(x*y+x), not x+(y+(x*y+x)), it is important, because c# works this way
             while (true)
             {
@@ -352,6 +331,7 @@ namespace Parser
                 {
                     _tokenSequence.Step();
                     var right = Multiplicative();
+                    CheckValidArithmeticOperation(TokenType.Plus, right);
                     if (TryFold(result, out var leftValue, out var leftType) &&
                         TryFold(right, out var rightValue, out var rightType))
                     {
@@ -369,6 +349,7 @@ namespace Parser
                 {
                     _tokenSequence.Step();
                     var right = Multiplicative();
+                    CheckValidArithmeticOperation(TokenType.Minus, right);
                     if (TryFold(result, out var leftValue, out var leftType) &&
                         TryFold(right, out var rightValue, out var rightType))
                     {
@@ -479,10 +460,20 @@ namespace Parser
             return false;
         }
 
+        private void CheckValidArithmeticOperation(TokenType? type, IExpression expression)
+        {
+            if (type != null && expression.ReturnType == CompilerType.Bool &&
+                (type == TokenType.Star || type == TokenType.Slash || type == TokenType.Minus ||
+                 type == TokenType.Plus))
+            {
+                throw new CompileException("Invalid arithmetic operation");
+            }
+        }
 
         public IExpression Multiplicative()
         {
             var result = Unary();
+            CheckValidArithmeticOperation(_tokenSequence.Current?.Type, result);
             // x*y*z = ((x*y)*z) not (x*(y*z)) , it is important, because c# works this way
             while (true)
             {
@@ -490,6 +481,7 @@ namespace Parser
                 {
                     _tokenSequence.Step();
                     var right = Unary();
+                    CheckValidArithmeticOperation(TokenType.Star, right);
                     if (TryFold(result, out var leftValue, out var leftType) &&
                         TryFold(right, out var rightValue, out var rightType))
                     {
@@ -529,12 +521,13 @@ namespace Parser
                 {
                     _tokenSequence.Step();
                     var right = Unary();
+                    CheckValidArithmeticOperation(TokenType.Slash, right);
                     if (TryFold(result, out var leftValue, out var leftType) &&
                         TryFold(right, out var rightValue, out var rightType))
                     {
                         //12/0 
                         if (rightValue == "0")
-                            throw new DivideByZeroException();
+                            throw new CompileException("Divide by zero");
 
                         result = ConstantFold(leftValue, leftType, rightValue, rightType, TokenType.Slash);
                     }
@@ -564,9 +557,9 @@ namespace Parser
         {
             if (_tokenSequence.Current.Type == TokenType.Minus)
             {
-                if (_tokenSequence.Get(1).Type == TokenType.Num)
+                if (_tokenSequence.Get(1).Type == TokenType.Constant)
                 {
-                    return new UnaryExpression(ParseNumber(), UnaryType.Negative);
+                    return new UnaryExpression(ParseConstant(), UnaryType.Negative);
                 }
 
                 _tokenSequence.Step();
@@ -585,14 +578,26 @@ namespace Parser
             if (_tokenSequence.Current.Type == TokenType.Not)
             {
                 _tokenSequence.Step();
+                var openParen = _tokenSequence.CurrentWithStep();
+                if (openParen.Type != TokenType.LeftParent)
+                {
+                    throw new CompileException("Должна стоять открывающая скобка");
+                }
+                
                 var expression = Expression();
+                
+                var closeParen = _tokenSequence.CurrentWithStep();
+                if (closeParen.Type != TokenType.RightParent)
+                {
+                    throw new CompileException("Должна стоять закрывающая скобка");
+                }
                 return new UnaryExpression(expression, UnaryType.Not);
             }
 
             return Primary();
         }
 
-        private IExpression ParseNumber()
+        private IExpression ParseConstant()
         {
             if (_tokenSequence.Current.Type == TokenType.Minus)
             {
@@ -614,26 +619,40 @@ namespace Parser
                 }
             }
 
-            throw new Exception("Integral constant is too large");
+            throw new CompileException("Integral constant is too large");
+        }
+
+        private VariableExpression GetVariable(Token token, bool byReference = false)
+        {
+            if (_parameters.TryGetValue(token.Value, out var compilerType))
+            {
+                var index = Array.IndexOf(_parameters.Keys.ToArray(), token.Value);
+                return new MethodArgumentVariableExpression(token.Value, compilerType, index, byReference);
+            }
+
+            if (_localVariables.TryGetValue(token.Value, out compilerType))
+            {
+                var index = Array.IndexOf(_localVariables.Keys.ToArray(), token.Value);
+                return new LocalVariableExpression(token.Value, compilerType, index, byReference);
+            }
+
+            if (_closedFields.TryGetValue(token.Value, out var fieldInfo))
+            {
+                return new FieldVariableExpression(token.Value, fieldInfo, byReference);
+            }
+
+
+            throw new ArgumentOutOfRangeException(
+                $"Variable with name '{_tokenSequence.Current.Value}' is not declared");
+            // var variableType = GetVariableType(token);
+            // return new LocalVariableExpression(token.Value, variableType, byReference);
         }
 
         public IExpression Primary()
         {
-            if (_tokenSequence.Current.Type == TokenType.Num)
+            if (_tokenSequence.Current.Type == TokenType.Constant)
             {
-                return ParseNumber();
-            }
-
-            if (_tokenSequence.Current.Type == TokenType.Num)
-            {
-                var stringNumber = _tokenSequence.Current.Value;
-                if (PrimaryExpression.GetPrimaryType(_tokenSequence.Current.Value, out var compilerType))
-                {
-                    _tokenSequence.Step();
-                    return new PrimaryExpression(stringNumber, compilerType);
-                }
-
-                throw new Exception("Integral constant is too large");
+                return ParseConstant();
             }
 
             if (_tokenSequence.Current?.Type == TokenType.Variable)
@@ -641,21 +660,20 @@ namespace Parser
                 var varToken = _tokenSequence.Current;
                 _tokenSequence.Step();
 
-                var variableType = GetVariableType(varToken);
-                return new VariableExpression(varToken.Value, variableType);
+                return GetVariable(varToken);
             }
 
             if (_tokenSequence.Current?.Type == TokenType.RefWord)
             {
                 if (_tokenSequence.Next.Type != TokenType.Variable)
                 {
-                    throw new Exception("ref keyword must using only with variables or method args");
+                    throw new CompileException("ref keyword must using only with variables or method args");
                 }
 
                 _tokenSequence.Step();
                 var varToken = _tokenSequence.CurrentWithStep();
-                var variableType = GetVariableType(varToken);
-                return new VariableExpression(varToken.Value, variableType, true);
+                var variable = GetVariable(varToken, true);
+                return variable;
             }
 
             if (_tokenSequence.Current?.Type == TokenType.LeftParent)
@@ -664,7 +682,7 @@ namespace Parser
                 var expression = Expression();
                 if (_tokenSequence.Current?.Type != TokenType.RightParent)
                 {
-                    throw new Exception("Count of opening brackets must be equals count of closing brackets");
+                    throw new CompileException("Count of opening brackets must be equals count of closing brackets");
                 }
 
                 _tokenSequence.Step();
@@ -673,7 +691,7 @@ namespace Parser
 
             if (_tokenSequence.Current?.Type == TokenType.RightParent)
             {
-                throw new Exception("Amount of opening brackets have to equals amount of closing brackets");
+                throw new CompileException("Amount of opening brackets have to equals amount of closing brackets");
             }
 
             if (_tokenSequence.Current?.Type == TokenType.Word)
@@ -681,31 +699,7 @@ namespace Parser
                 return MethodCallExpression();
             }
 
-            if (_tokenSequence.Current?.Type == TokenType.Constant)
-            {
-                if (Constants.Dictionary.TryGetValue(_tokenSequence.Current.Value, out var item))
-                {
-                    _tokenSequence.Step();
-                    if (item.Item1[0] != '-') return new PrimaryExpression(item.Item1, item.Item2);
-                    return new UnaryExpression(new PrimaryExpression(item.Item1[1..], item.Item2), UnaryType.Negative);
-                }
-
-                throw new Exception("Unknown constant");
-            }
-
             throw new ArgumentException();
-        }
-
-        private CompilerType GetVariableType(Token varToken)
-        {
-            if (_parameters.TryGetValue(varToken.Value, out var variableType) ||
-                _closedFields.TryGetValue(varToken.Value, out variableType) ||
-                _localVariables.TryGetValue(varToken.Value, out variableType))
-            {
-                return variableType;
-            }
-
-            throw new Exception("can't find this variable");
         }
 
         private MethodCallExpression MethodCallExpression()

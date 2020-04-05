@@ -5,7 +5,7 @@ using Parser;
 
 namespace Compiler
 {
-    public abstract class ExpressionVisitor
+    public class ExpressionVisitor
     {
         public virtual IStatement VisitStatement(IStatement statement)
         {
@@ -13,7 +13,6 @@ namespace Compiler
             {
                 case ExpressionType.Assignment:
                     return VisitAssignment((AssignmentStatement) statement);
-                    break;
                 case ExpressionType.Return:
                     return VisitReturn((ReturnStatement) statement);
                 case ExpressionType.IfElse:
@@ -35,23 +34,28 @@ namespace Compiler
 
         public virtual IExpression VisitExpression(IExpression expression)
         {
-            switch (expression.ExpressionType)
+            return expression.ExpressionType switch
             {
-                case ExpressionType.Variable:
-                    return VisitVariable((VariableExpression) expression);
-                case ExpressionType.Primary:
-                    return VisitPrimary((PrimaryExpression) expression);
-                case ExpressionType.Binary:
-                    return VisitBinary((BinaryExpression) expression);
-                case ExpressionType.Unary:
-                    return VisitUnary((UnaryExpression) expression);
-                case ExpressionType.MethodCallExpression:
-                    return VisitMethod((MethodCallExpression) expression);
-                case ExpressionType.Logical:
-                    return VisitLogical((LogicalBinaryExpression) expression);
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
+                ExpressionType.LocalVariable => (IExpression) VisitLocalVariable((LocalVariableExpression) expression),
+                ExpressionType.FieldVariable => (IExpression) VisitField((FieldVariableExpression) expression),
+                ExpressionType.MethodArgVariable => (IExpression) VisitMethodArgument((MethodArgumentVariableExpression) expression),
+                ExpressionType.Primary => VisitPrimary((PrimaryExpression) expression),
+                ExpressionType.Binary => VisitBinary((BinaryExpression) expression),
+                ExpressionType.Unary => VisitUnary((UnaryExpression) expression),
+                ExpressionType.MethodCallExpression => VisitMethod((MethodCallExpression) expression),
+                ExpressionType.Logical => VisitLogical((LogicalBinaryExpression) expression),
+                _ => throw new ArgumentOutOfRangeException()
+            };
+        }
+
+        public virtual MethodArgumentVariableExpression VisitMethodArgument(MethodArgumentVariableExpression expression)
+        {
+            return expression;
+        }
+
+        public virtual FieldVariableExpression VisitField(FieldVariableExpression expression)
+        {
+            return expression;
         }
 
         public virtual LogicalBinaryExpression VisitLogical(LogicalBinaryExpression logical)
@@ -59,20 +63,13 @@ namespace Compiler
             return logical;
         }
 
-        
+
         public virtual Statement VisitStatement(Statement statement)
         {
             return new Statement(statement.Statements.Select(VisitStatement).ToArray());
         }
 
-        // public virtual LogicalBinaryExpression VisitLogical(LogicalBinaryExpression expression, Label IfBodyStart)
-        // {
-        //     var left = VisitExpression(expression.Left);
-        //     var right = VisitExpression(expression.Left);
-        //     return new LogicalBinaryExpression(left, right, expression.Operator);
-        // }
-
-        public abstract IfElseStatement VisitIfElse(IfElseStatement statement);
+        public virtual IfElseStatement VisitIfElse(IfElseStatement statement) => statement;
 
 
         public virtual BinaryExpression VisitBinary(BinaryExpression binaryExpression)
@@ -94,10 +91,10 @@ namespace Compiler
             return assignmentStatement;
         }
 
-        public virtual UnaryExpression VisitUnary(UnaryExpression unaryExpression)
+        public virtual IExpression VisitUnary(UnaryExpression unaryExpression)
         {
             var expression = VisitExpression(unaryExpression.Expression);
-            return new UnaryExpression(expression,UnaryType.Negative);
+            return new UnaryExpression(expression, UnaryType.Negative);
         }
 
         public virtual PrimaryExpression VisitPrimary(PrimaryExpression primaryExpression)
@@ -111,7 +108,7 @@ namespace Compiler
             return new MethodCallExpression(methodCallExpression.Name, expressions);
         }
 
-        public virtual VariableExpression VisitVariable(VariableExpression variable)
+        public virtual VariableExpression VisitLocalVariable(LocalVariableExpression variable)
         {
             return variable;
         }

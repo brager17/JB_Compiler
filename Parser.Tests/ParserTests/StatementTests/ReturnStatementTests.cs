@@ -19,8 +19,7 @@ namespace Parser
                 }
                 ";
 
-            var exception =
-                Assert.Throws<CompileException>(() => TestHelper.GeneratedStatementsMySelf(expr, out var func));
+            var exception = Assert.Throws<CompileException>(() => Compiler.CompileStatement(expr, out _));
             Assert.Equal("End of function is reachable without any return statement", exception.Message);
         }
 
@@ -44,7 +43,7 @@ namespace Parser
                     }
                 }";
 
-            TestHelper.GeneratedStatementsMySelf(expr, out var func);
+            Compiler.CompileStatement(expr, out _);
         }
         
         [Fact]
@@ -62,7 +61,7 @@ namespace Parser
                 return 1;
             ";
 
-            TestHelper.GeneratedStatementsMySelf(expr, out var func);
+            Compiler.CompileStatement(expr, out _);
         }
     }
 }
