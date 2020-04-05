@@ -7,7 +7,7 @@ namespace Parser.Tests.ParserTests
     public class ConstantFoldingTests
     {
         [Fact]
-        public void Test()
+        public void Parse__SumThreeNumbers__Folded()
         {
             var expr = "1+2+3";
 
@@ -19,7 +19,7 @@ namespace Parser.Tests.ParserTests
 
 
         [Fact]
-        public void Test3()
+        public void Parse__UsingUnaryOps__Folded()
         {
             var expr = "1-((-(-2))+3-1)";
 
@@ -66,7 +66,7 @@ namespace Parser.Tests.ParserTests
 
 
         [Fact]
-        public void Test7()
+        public void Parse__1MulWithVariable__FoldedToVariable()
         {
             var expr = "1*x";
 
@@ -77,7 +77,7 @@ namespace Parser.Tests.ParserTests
         }
 
         [Fact]
-        public void Test8()
+        public void Parse__VariableDiv1__FoldedToVariable()
         {
             var expr = "x/1";
 
@@ -87,19 +87,10 @@ namespace Parser.Tests.ParserTests
             Assert.Equal("x", ((VariableExpression) parseResult).Name);
         }
 
-
-        // roslyn doesn't generate exception in cases
-        [InlineData("(12*13+14)/(0*(x+y+z))")]
-        [InlineData("(12*13+14-1)/(0*x)")]
-        [InlineData("(12-15)/(0*((y+12)))")]
-        // but generates in cases: "12/0',"12/(1+2-3),"12/(1*2*3*0)"
-        [Theory]
-        public void Parse__ExpressionWithFoldingExprAfterMultiBy0__NotDivisionBy0CompileTimException(string expr)
-        {
-            TestHelper.GetParseResultExpression(expr);
-        }
+        
 
         [Fact]
+        // roslyn will count x-4 
         public void Parse__Multi0__DoesntConstantFold()
         {
             var p = TestHelper.GetParseResultExpression("0*(x-4)");

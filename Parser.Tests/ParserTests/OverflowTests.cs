@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using Parser.Parser.Exceptions;
 using Parser.Parser.Expressions;
 using Xunit;
@@ -22,11 +23,10 @@ namespace Parser.Tests.ParserTests
         public void Parser__OverflowingComping__ThrowException(string expr)
         {
             var exception = Assert.Throws<Exception>(() => TestHelper.GetParseResultExpression(expr));
-            Assert.Equal("The operation is overflow in compile mode",exception.Message);
+            Assert.Equal("The operation is overflow in compile mode", exception.Message);
         }
 
 
-        // todo: were errors
         [Theory]
         [InlineData(
             "1/(7700)*75915098131+y-z-031856*z+(99-x)-8823303206/(43)*73279+y+20121-((5-x/757))*4840920-x/5+y*41")]
@@ -62,16 +62,9 @@ namespace Parser.Tests.ParserTests
             "4877259+y*49-(2897801*y)-25+z/413/y+7835*x/8278+x-1+(z-1492+(8161/y)-1+x+z+152234670/z*19+y)-3505820")]
         public void Parser__NotOverflowingComping__Correct(string expr)
         {
-            TestHelper.GetParseResultExpression(expr);
-        }
-
-        [Theory]
-        [InlineData(int.MaxValue, int.MinValue)]
-        [InlineData(int.MaxValue, int.MinValue + 10)]
-        [InlineData(int.MaxValue, int.MaxValue)]
-        public void T(int x, int y)
-        {
-            var t = (int.MaxValue / 10 * x) * int.MaxValue;
+            var actual = Compiler.CompileExpression(expr);
+            TestHelper.GeneratedRoslynExpression(expr, out var expected);
+            Assert.Equal(expected(17,43,59),actual(17,43,59));
         }
 
         [Fact]
@@ -81,7 +74,7 @@ namespace Parser.Tests.ParserTests
             var exception = Assert.Throws<CompileException>(() => TestHelper.GetParseResultExpression(s));
             Assert.Equal("Integral constant is too large", exception.Message);
         }
-        
+
         [Fact]
         public void IntOverflow()
         {

@@ -2,7 +2,6 @@ using System;
 
 namespace Parser.Parser.Expressions
 {
-    // todo разделить для Expression'ов и для Statement'ов
     [Flags]
     public enum ExpressionType
     {
@@ -19,6 +18,7 @@ namespace Parser.Parser.Expressions
         Return = 1 << 10,
         IfElse = 1 << 11,
         Statement = 1 << 12,
+        MethodCallParameter = 1 << 12,
         
         Variables = LocalVariable | FieldVariable | MethodArgVariable
     }

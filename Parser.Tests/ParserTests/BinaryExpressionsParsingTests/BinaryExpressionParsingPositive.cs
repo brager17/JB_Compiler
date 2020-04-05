@@ -23,7 +23,7 @@ namespace Parser.Tests.ParserTests.BinaryExpressionsParsingTests
         public void Parse__MismatchArgumentsWithArithmeticOperation__ThrowError(string expression)
         {
             var ex = Assert.Throws<CompileException>(() => TestHelper.GetParseResultExpression(expression));
-            Assert.Equal("Invalid arithmetic operation", ex.Message);
+            Assert.Contains("Invalid arithmetic operation", ex.Message);
         }
 
         [Theory]
@@ -34,7 +34,7 @@ namespace Parser.Tests.ParserTests.BinaryExpressionsParsingTests
         public void Parse__DivideByZero__ThrowDivideByZeroException(string expr)
         {
             var ex = Assert.Throws<CompileException>(() => TestHelper.GetParseResultExpression(expr));
-            Assert.Equal("Divide by zero", ex.Message);
+            Assert.Contains("Divide by zero", ex.Message);
         }
 
         // there are csharp compiler rules
@@ -100,14 +100,7 @@ namespace Parser.Tests.ParserTests.BinaryExpressionsParsingTests
                 , result);
         }
 
-        [Fact]
-        // todo : перенести в негативные тесты
-        public void Test4()
-        {
-            var @exception =
-                Assert.Throws<CompileException>(() => TestHelper.GetParseResultExpression("(2+2))*2", false));
-            Assert.Equal(exception.Message, "Expression is incorrect");
-        }
+      
 
         [Fact]
         public void Parse__ExpressionWithVariable__CorrectAst()
@@ -117,10 +110,11 @@ namespace Parser.Tests.ParserTests.BinaryExpressionsParsingTests
             JsonAssert(
                 new BinaryExpression(
                     new BinaryExpression(
-                        new BinaryExpression(new MethodArgumentVariableExpression("x", CompilerType.Long,0), new PrimaryExpression("1"),
+                        new BinaryExpression(new MethodArgumentVariableExpression("x", CompilerType.Long, 0),
+                            new PrimaryExpression("1"),
                             TokenType.Plus),
-                        new MethodArgumentVariableExpression("y", CompilerType.Long,1), TokenType.Star),
-                    new MethodArgumentVariableExpression("z", CompilerType.Long,2), TokenType.Plus)
+                        new MethodArgumentVariableExpression("y", CompilerType.Long, 1), TokenType.Star),
+                    new MethodArgumentVariableExpression("z", CompilerType.Long, 2), TokenType.Plus)
                 , result);
         }
 
@@ -211,6 +205,14 @@ namespace Parser.Tests.ParserTests.BinaryExpressionsParsingTests
             var tt = TestHelper.GeneratedRoslynExpression(expr, out var roslynFunc);
 
             Assert.Equal(roslynFunc(x, y, z), func(x, y, z));
+        }
+        
+        //negative
+        [Fact]
+        public void Parse__HasExtraBracket__ThrowCompileExc()
+        {
+            var @exception = Assert.Throws<CompileException>(() => TestHelper.GetParseResultExpression("(2+2))*2"));
+            Assert.Contains(exception.Message, "Expression is incorrect");
         }
     }
 }

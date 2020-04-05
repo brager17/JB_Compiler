@@ -22,13 +22,13 @@ namespace Parser.Tests.ILGeneratorTests.MethodTests
         [InlineData("1+MethodWith1Parameter(x)")]
         [InlineData("1+MethodWith3Parameters(x,y,z)")]
         [InlineData("1+MethodWith3Parameters(a,1324,c)")]
-        public void Parse__StaticMethodWithLocalVariableParameters__Correct(string expression)
+        public void Parse__StaticMethodWithLocalVariableParameters__ResultAsRoslyn(string expression)
         {
-            var actual = Compiler.CompileExpression(expression, out var func, typeof(MethodsFieldsForTests));
+            var ilLogs = Compiler.CompileExpression(expression, out var func, typeof(MethodsFieldsForTests));
 
-            var expected = TestHelper.GeneratedRoslynExpression(expression, out var roslynGeneratedFunc);
+            var roslynGeneratedIl = TestHelper.GeneratedRoslynExpression(expression, out var roslynGeneratedFunc);
 
-            Assert.Equal(expected, actual);
+            Assert.Equal(roslynGeneratedIl, ilLogs);
             Assert.Equal(roslynGeneratedFunc(1, 2, 3), func(1, 2, 3));
         }
 

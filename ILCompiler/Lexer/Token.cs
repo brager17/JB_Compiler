@@ -1,17 +1,28 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Parser.Lexer
 {
     public enum TokenType
     {
+        [Display(Name = "+")]
         Plus,
+        [Display(Name = "-")]
         Minus,
+        [Display(Name = "/")]
         Slash,
+        [Display(Name = "*")]
         Star,
+        [Display(Name = "(")]
         LeftParent,
+        [Display(Name = ")")]
         RightParent,
+        [Display(Name = "{")]
         LeftBrace,
+        [Display(Name = "}")]
         RightBrace,
         Variable,
         Word,
+        [Display(Name = ",")]
         Comma,
         Constant,
         IntWord,
@@ -19,17 +30,27 @@ namespace Parser.Lexer
         BoolWord,
 
         RefWord,
+        [Display(Name = ";")]
         Semicolon,
         Assignment,
+        [Display(Name = "return")]
         ReturnWord,
 
+        [Display(Name = "if")]
         IfWord,
+        [Display(Name = "else")]
         ElseWord,
+        [Display(Name = "<")]
         LessThan,
+        [Display(Name = "<=")]
         LessThanOrEquals,
+        [Display(Name = ">")]
         GreaterThan,
+        [Display(Name = ">=")]
         GreaterThanOrEquals,
+        [Display(Name = "==")]
         EqualTo,
+        [Display(Name = "!=")]
         NotEqualTo,
         Or,
         And,

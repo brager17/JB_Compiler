@@ -1,4 +1,5 @@
 using System.Linq;
+using Parser.Parser.Exceptions;
 using Parser.Tests.ILGeneratorTests.MethodTests;
 using Xunit;
 using Xunit.Abstractions;
@@ -61,7 +62,7 @@ namespace Parser.Tests.ILGeneratorTests
         }
 
         public static long MethodWith2Parameters(long o, long t) => t + o;
-        
+
         [Theory]
         [InlineData("long _d = a+c;int q=1;return _d+a-12;", "_d+a-12")]
         [InlineData("int i=2;long j = MethodWith2Parameters(i,a);return j;", "j")]
@@ -80,7 +81,7 @@ namespace Parser.Tests.ILGeneratorTests
         // }
         public void Compile__StatementWithStaticMethodsAndFields__Correct(string expr, string returnExpr)
         {
-            Compiler.CompileStatement(expr, out var func,typeof(MethodsFieldsForTests));
+            Compiler.CompileStatement(expr, out var func, typeof(MethodsFieldsForTests));
             TestHelper.GeneratedRoslynExpression(returnExpr,
                 out var roslynFunc,
                 statements: expr
@@ -128,6 +129,17 @@ namespace Parser.Tests.ILGeneratorTests
             Assert.Equal(0, func(2, 1, 0));
             Assert.Equal(0, func(1, 2, 0));
             Assert.Equal(1, func(2, 2, 0));
+        }
+
+        [Theory]
+        [InlineData("int i;return 1;")]
+        [InlineData("long i;return 1;")]
+        [InlineData("bool i;return 1;")]
+        public void DefinedVariableWithoutInitialize__ThrowException(string expr)
+        {
+            var exception = Assert.Throws<CompileException>(() => Compiler.CompileStatement(expr));
+            Assert.Contains("You cannot leave a variable uninitialized", exception.Message);
+            _testOutputHelper.WriteLine(exception.Message);
         }
     }
 }

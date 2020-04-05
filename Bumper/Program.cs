@@ -98,9 +98,9 @@ namespace Bumper
         [UsedImplicitly]
         private static long SecretOperation(long a, long b) => (a + b) << 1;
 
-        // todo: вернуть нормальную ошибку, если пользователь пытается объявить переменную не инициализируя ее.
         static void Main(string[] args)
         {
+            BumpTest();
             var calculator = @"
         int op = -1;
         if ((z < 0 || z > 3) && (operation < 0 || operation > 3) && !useSecretOperation)

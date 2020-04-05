@@ -10,6 +10,32 @@ using Parser.Utils;
 
 namespace Parser.Parser
 {
+    public static class ParserExtensions
+    {
+        public static bool CheckCannotImplicitConversion(this VariableExpression left, IExpression right)
+        {
+            // check it : long l = int.MaxValue+1;  int i = l;
+            if (left.ReturnType == CompilerType.Long) return false;
+
+            if (right.TryCast<PrimaryExpression>(out var primary) && primary.ReturnType == CompilerType.Long)
+                return true;
+
+            if (right.TryCast<UnaryExpression>(out var unaryExpression) &&
+                unaryExpression.Expression.TryCast(out primary) && primary.ReturnType == CompilerType.Long)
+                return true;
+
+            if (right.TryCast<LocalVariableExpression>(out var arg) && arg.ReturnType == CompilerType.Long)
+                return true;
+
+            if (right.TryCast<FieldVariableExpression>(out var field) && field.ReturnType == CompilerType.Long)
+                return true;
+
+            if (right.TryCast<MethodCallExpression>(out var call) && call.ReturnType == CompilerType.Long)
+                return true;
+
+            return false;
+        }
+    }
     public class Parser
     {
         private readonly Dictionary<string, FieldInfo> _closedFields;
@@ -38,7 +64,6 @@ namespace Parser.Parser
 
             var statement = new Statement(list.ToArray());
 
-            // todo: можно улучшить , чтобы не проходить второй раз
             if (!statement.IsReturnStatement)
             {
                 throw new CompileException("End of function is reachable without any return statement");
@@ -50,38 +75,12 @@ namespace Parser.Parser
         public IExpression ParseExpression()
         {
             var expression = Expression();
-            // todo можно улучшить, потому что не конкретизируем ошибку
             if (!_tokenSequence.IsEmpty)
             {
                 throw new CompileException("Expression is incorrect");
             }
 
             return expression;
-        }
-
-
-        public bool CheckCannotImplicitConversion(VariableExpression left, IExpression right)
-        {
-            // check it : long l = int.MaxValue+1;  int i = l;
-            if (left.ReturnType == CompilerType.Long) return false;
-
-            if (right.TryCast<PrimaryExpression>(out var primary) && primary.ReturnType == CompilerType.Long)
-                return true;
-
-            if (right.TryCast<UnaryExpression>(out var unaryExpression) &&
-                unaryExpression.Expression.TryCast(out primary) && primary.ReturnType == CompilerType.Long)
-                return true;
-
-            if (right.TryCast<LocalVariableExpression>(out var arg) && arg.ReturnType == CompilerType.Long)
-                return true;
-
-            if (right.TryCast<FieldVariableExpression>(out var field) && field.ReturnType == CompilerType.Long)
-                return true;
-
-            if (right.TryCast<MethodCallExpression>(out var call) && call.ReturnType == CompilerType.Long)
-                return true;
-
-            return false;
         }
 
         private IStatement AssignmentStatement()
@@ -94,13 +93,8 @@ namespace Parser.Parser
                 var keywordType = _tokenSequence.Current.Type;
                 _tokenSequence.Step();
 
-                var type = keywordType switch
-                {
-                    TokenType.IntWord => CompilerType.Int,
-                    TokenType.LongWord => CompilerType.Long,
-                    TokenType.BoolWord => CompilerType.Bool
-                };
-
+                var type = keywordType.TokenToCompilerType();
+                
                 if (_localVariables.TryGetValue(_tokenSequence.Current.Value, out _))
                 {
                     throw new CompileException(
@@ -119,24 +113,18 @@ namespace Parser.Parser
             }
             else if (_tokenSequence.Current?.Type == TokenType.Variable)
             {
-                var token = _tokenSequence.CurrentWithStep();
-                varExpression = GetVariable(token);
+                varExpression = GetVariable(_tokenSequence.CurrentWithStep());
             }
 
             _tokenSequence.Step(); // assignment sign
             var expression = Expression();
 
-            if (CheckCannotImplicitConversion(varExpression, expression))
+            if (varExpression.CheckCannotImplicitConversion(expression))
             {
                 throw new CompileException("Cannot implicitly convert type 'long ' to int");
             }
 
-            if (_tokenSequence.Current?.Type != TokenType.Semicolon)
-            {
-                throw new CompileException("Statement must be ended by semicolon");
-            }
-
-            _tokenSequence.Step();
+            _tokenSequence.ThrowIfNotMatched(TokenType.Semicolon, "Assignment statement must be ended by semicolon");
 
             return new AssignmentStatement(varExpression, expression);
         }
@@ -148,16 +136,16 @@ namespace Parser.Parser
                 return AssignmentStatement();
             }
 
+            if (_tokenSequence.IsTypeKeyWord())
+            {
+                _tokenSequence.Throw("You cannot leave a variable uninitialized");
+            }
+
             if (_tokenSequence.Current?.Type == TokenType.ReturnWord)
             {
                 _tokenSequence.Step();
                 var expression = Expression();
-                if (_tokenSequence.Current?.Type != TokenType.Semicolon)
-                {
-                    throw new CompileException("Return must be ended by semicolon");
-                }
-
-                _tokenSequence.Step();
+                _tokenSequence.ThrowIfNotMatched(TokenType.Semicolon, "Return must be ended by semicolon");
                 return new ReturnStatement(expression);
             }
 
@@ -170,45 +158,22 @@ namespace Parser.Parser
             if (_tokenSequence.Current?.Type == TokenType.Word && _tokenSequence.Next.Type == TokenType.LeftParent)
             {
                 var methodCall = MethodCallExpression();
-                if (_tokenSequence.Current.Type != TokenType.Semicolon)
-                {
-                    throw new CompileException("Missing semicolon");
-                }
-
-                _tokenSequence.Step();
+                _tokenSequence.ThrowIfNotMatched(TokenType.Semicolon, "Missing semicolon");
                 return new VoidMethodCallStatement(methodCall);
             }
 
-            // if expression, return assignment statement with expression
-            return new AssignmentStatement(ParseExpression());
-            // throw new CompileException("дописать остальные виды statements");
+            throw new NotSupportedException("Not supported statement");
         }
 
         public IfElseStatement IfElseStatement()
         {
             _tokenSequence.Step();
-            if (_tokenSequence.Current.Type != TokenType.LeftParent)
-            {
-                throw new CompileException("Missing Left Parent");
-            }
-
-            _tokenSequence.Step();
+             _tokenSequence.ThrowIfNotMatched(TokenType.LeftParent, "Missing Left Parent");
             var test = Expression();
-
-            if (_tokenSequence.Current.Type != TokenType.RightParent)
-            {
-                throw new CompileException("Missing Right Parent");
-            }
-
-            _tokenSequence.Step();
-            if (_tokenSequence.Current.Type != TokenType.LeftBrace)
-            {
-                throw new CompileException("Missing left brace");
-            }
-
-            _tokenSequence.Step();
-
-
+            
+            _tokenSequence.ThrowIfNotMatched(TokenType.RightParent, "Missing Right Parent");
+            _tokenSequence.ThrowIfNotMatched(TokenType.LeftBrace, "Missing left brace");
+            
             var ifStatements = new List<IStatement>();
             while (_tokenSequence.Current.Type != TokenType.RightBrace)
             {
@@ -219,30 +184,21 @@ namespace Parser.Parser
             if (_tokenSequence.Next?.Type != TokenType.ElseWord)
             {
                 _tokenSequence.Step();
-                return new IfElseStatement(test,
-                    new Statement(ifStatements.ToArray()));
+                return new IfElseStatement(test, new Statement(ifStatements.ToArray()));
             }
 
             _tokenSequence.Step();
             _tokenSequence.Step();
-            if (_tokenSequence.Current.Type != TokenType.LeftBrace)
-            {
-                throw new CompileException("Missing left brace");
-            }
+            
+            _tokenSequence.ThrowIfNotMatched(TokenType.LeftBrace, "Missing left brace");
 
-            _tokenSequence.Step();
             var elseStatements = new List<IStatement>();
             while (_tokenSequence.Current.Type != TokenType.RightBrace)
             {
                 elseStatements.Add(Statement());
             }
 
-            if (_tokenSequence.Current.Type != TokenType.RightBrace)
-            {
-                throw new CompileException("Missing right brace");
-            }
-
-            _tokenSequence.Step();
+            _tokenSequence.ThrowIfNotMatched(TokenType.RightBrace,"Missing right brace");
 
             return new IfElseStatement(test,
                 new Statement(ifStatements.ToArray()),
@@ -471,7 +427,7 @@ namespace Parser.Parser
                 (type == TokenType.Star || type == TokenType.Slash || type == TokenType.Minus ||
                  type == TokenType.Plus))
             {
-                throw new CompileException("Invalid arithmetic operation");
+                _tokenSequence.Throw("Invalid arithmetic operation");
             }
         }
 
@@ -589,7 +545,7 @@ namespace Parser.Parser
                     var variable = GetVariable(afterToken);
                     if (variable.ReturnType != CompilerType.Bool)
                     {
-                        throw new Exception($"Sign! cannot be used with a {variable.ReturnType} variable");
+                        throw new CompileException($"Sign! cannot be used with a {variable.ReturnType} variable");
                     }
 
                     // _tokenSequence.Step();
@@ -666,7 +622,7 @@ namespace Parser.Parser
             // return new LocalVariableExpression(token.Value, variableType, byReference);
         }
 
-        public IExpression Primary()
+        private IExpression Primary()
         {
             if (_tokenSequence.Current.Type == TokenType.Constant)
             {

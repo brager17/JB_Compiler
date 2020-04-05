@@ -67,7 +67,7 @@ namespace Parser.Tests
             char[] brackets = new[] {'(', ')'};
             operators ??= new[]
             {
-                '+', '-', '/', '*',
+                '+', '-', '*',
             };
             variables ??= new[]
             {

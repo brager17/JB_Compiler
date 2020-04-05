@@ -1,4 +1,5 @@
 using System;
+using Parser.Lexer;
 using Parser.Parser.Expressions;
 
 namespace Parser.Utils
@@ -36,6 +37,15 @@ namespace Parser.Utils
             CompilerType.Long => typeof(long),
             _ => throw new ArgumentOutOfRangeException()
         };
+
+        public static CompilerType TokenToCompilerType(this TokenType keywordType) => keywordType switch
+        {
+            TokenType.IntWord => CompilerType.Int,
+            TokenType.LongWord => CompilerType.Long,
+            TokenType.BoolWord => CompilerType.Bool,
+        };
+
+       
 
         public static CompilerType GetRoslynType(this Type type)
         {

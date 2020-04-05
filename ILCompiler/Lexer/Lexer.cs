@@ -57,7 +57,6 @@ namespace Parser.Lexer
             _tokens = new List<Token>();
         }
 
-//todo поддержать переменные состоящие из нескольких букв
         public IReadOnlyList<Token> Tokenize()
         {
             // todo pattern mathicg must be better
@@ -74,7 +73,7 @@ namespace Parser.Lexer
                 else if (long.TryParse(_program[i].ToString(), out _))
                 {
                     var sb = new StringBuilder();
-                    while (i < _program.Length && IsDigit(_program[i]))
+                    while (i < _program.Length && char.IsDigit(_program[i]))
                     {
                         sb.Append(_program[i]);
                         i++;
@@ -92,9 +91,6 @@ namespace Parser.Lexer
                 {
                     _tokens.Add(new Token(variable, TokenType.Variable));
                 }
-
-
-                // will be supported in the future
             }
 
             return _tokens;
@@ -150,7 +146,7 @@ namespace Parser.Lexer
                 {
                     if (!matchedTokens.Any()) return false;
                     // bool boolVariable;
-                    if (IsChar(sb[^1]) && (IsChar(sb[^2]))) return false;
+                    if (char.IsLetter(sb[^1]) && (char.IsLetter(sb[^2]))) return false;
 
                     token = matchedTokens.Last();
                     i = j - 2;
@@ -164,16 +160,14 @@ namespace Parser.Lexer
             }
         }
 
-        private bool IsDigit(char c) => c >= '0' && c <= '9';
-        private bool IsChar(char c) => c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z';
 
         private bool IsVariable(ref int i, out string name)
         {
             name = default;
-            if (IsDigit(_program[i])) return false;
+            if (char.IsDigit(_program[i])) return false;
             int j = i;
             var sb = new StringBuilder();
-            while (j < _program.Length && (IsChar(_program[j]) || IsDigit(_program[j])))
+            while (j < _program.Length && (char.IsLetter(_program[j]) || char.IsDigit(_program[j])))
             {
                 sb.Append(_program[j++]);
             }
@@ -188,7 +182,7 @@ namespace Parser.Lexer
         {
             methodName = default;
             var j = i;
-            if (!IsChar(_program[j]))
+            if (!char.IsLetter(_program[j]))
             {
                 return false;
             }
@@ -196,7 +190,7 @@ namespace Parser.Lexer
             var methodNameSb = new StringBuilder(10);
             for (; j < _program.Length && _program[j] != '('; j++)
             {
-                if (!(IsChar(_program[j]) || IsDigit(_program[j])))
+                if (!(char.IsLetter(_program[j]) || char.IsDigit(_program[j])))
                     return false;
                 methodNameSb.Append(_program[j]);
             }

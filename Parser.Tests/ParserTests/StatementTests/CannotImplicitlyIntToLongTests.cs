@@ -15,17 +15,6 @@ namespace Parser.Tests.ParserTests.StatementTests
             Assert.Equal("Cannot implicitly convert type 'long ' to int", exception.Message);
         }
 
-        // 
-        // todo :: нужно сделать один класс, который передать в Parse, что-то типа контекста и туда положить всю необходимую информацию
-        // public static long a() => 1;
-//            [MethodImpl(MethodImplOptions.NoOptimization)]
-        //          public static long Run(long x, long y, long z)
-        //        {
-        //        int w = a(); <- expcetion
-        //        return 1;
-        //  }
-        //
-        //
         [Theory]
         [InlineData("int q = MethodWithoutParameters();return 1;")]
         public void Parse__ImplicitIntToLongAssignmentMethod__ThrowError(string expr)
