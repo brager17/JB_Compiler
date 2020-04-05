@@ -24,43 +24,43 @@
 
         static void Main(string[] args)
         {
-            var calculator = @"
-        int op = -1;
-        if ((z < 0 || z > 3) && (operation < 0 || operation > 3) && !useSecretOperation)
-        {
-            PrintErrorMessage();
-            return -1;
-        }
-        if(!(z < 0 || z > 3))
-        { 
-            op = z;
-        }
-        else
-        {
-            if(!(operation < 0 || operation > 3))
-            {
-               op = operation;
-            }
-        }
-        
-        if(op == 0) 
-        {
-            return x + y;
-        }
-        if(op == 1)
-        {
-            return x - y;
-        }
-        if(op == 2) 
-        {
-            return x * y;
-        }
-        if(op == 3)
-        {
-            return x / y;
-        }
-        return SecretOperation(x,y);
-";
+           var calculator = @"
+                                int op = -1;
+                                if ((z < 0 || z > 3) && (operation < 0 || operation > 3) && !useSecretOperation)
+                                {
+                                    PrintErrorMessage();
+                                    return -1;
+                                }
+                                if(!(z < 0 || z > 3))
+                                { 
+                                    op = z;
+                                }
+                                else
+                                {
+                                    if(!(operation < 0 || operation > 3))
+                                    {
+                                       op = operation;
+                                    }
+                                }
+                                
+                                if(op == 0) 
+                                {
+                                    return x + y;
+                                }
+                                if(op == 1)
+                                {
+                                    return x - y;
+                                }
+                                if(op == 2) 
+                                {
+                                    return x * y;
+                                }
+                                if(op == 3)
+                                {
+                                    return x / y;
+                                }
+                                return SecretOperation(x,y);";
+
         }
 ```
 
@@ -133,6 +133,9 @@
 
 ## IlCompiler
 
+Я сделал основное и все дополнительные задания.
+
+
 Точка входа в приложение - проект Starter, вы можете использовать статический метод класса ```Program``` ```Compile```. 
 Компилятор может обрабатывать Statement и делает это отдельно используя методы ```Compiler.CompileStatement``` и ```Compiler.CompileExpression```.
 
@@ -155,7 +158,7 @@
 Для тестирования этих операторов я добавил поддержку ref.
 
 
-Я хотел генерировать код подобный компилятору Roslyn, поэтому параллельно с собственной компиляцией, компилировал программу еще и Roslyn'ом, а потом, используя Mono.Cecil сравнивал содержимое. 
+Я хотел генерировать код подобный компилятору Roslyn, поэтому параллельно с собственной компиляцией, компилировал программу еще и Roslyn'ом (release компиляция), а потом, используя Mono.Cecil сравнивал содержимое. 
 
 
 Это можно заметить в некоторых тестах, например:
@@ -164,7 +167,7 @@
 ![](https://habrastorage.org/webt/hf/ip/zj/hfipzj3ghfhocwcm9x89mh78bxm.png)
 
 
-Я добавил поддержку свертки констант, в итоге код для expression'ов в которых не участвуют числа, получился идентичным, но если выражении появляется операция над числами, то Rolsyn в некоторых случаях(например,деление на 0), разворачивает вычисления по-другому, [Пример](https://sharplab.io/#v2:EYLgxg9gTgpgtADwGwBYA+ABATARgLABQGAzAATakDCpA3oaQ6QA5QCWAbgIYAuMprAO26lgpALykcAbnqMSpADYQBAc1IBZABQBKWrMYGMAdkkB6YACoADDIIGAvoXtA===)
+Я добавил поддержку свертки констант, в итоге код для expression'ов в которых не участвуют числа(только аргументы), получился идентичным, но если выражении появляется операция над числами, то Rolsyn в некоторых случаях(например,деление на 0), разворачивает вычисления по-другому, [пример](https://sharplab.io/#v2:EYLgxg9gTgpgtADwGwBYA+ABATARgLABQGAzAATakDCpA3oaQ6QA5QCWAbgIYAuMprAO26lgpALykcAbnqMSpADYQBAc1IBZABQBKWrMYGMAdkkB6YACoADDIIGAvoXtA===)
 
 
 ![](https://habrastorage.org/webt/cr/jy/a-/crjya-vwazvnb1nm01dgnn-syss.png)
